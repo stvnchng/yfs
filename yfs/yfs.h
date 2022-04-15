@@ -3,25 +3,6 @@
 #include <stdbool.h>
 #include "hash_table.h"
 
-/**
- *  Definitions for request types
- */
-#define OPEN            0
-#define CLOSE          1
-#define CREATE        2
-#define READ            3
-#define WRITE          4
-#define SEEK            5
-#define LINK             6
-#define UNLINK        7
-#define SYMLINK      8
-#define READLINK    9
-#define MKDIR         10
-#define RMDIR         11
-#define CHDIR          12
-#define STAT            13
-#define SYNC            14
-#define SHUTDOWN 15
 
 /**
  *  Definition for cache structure for INodes and Blocks 
@@ -51,17 +32,37 @@ struct free_list_item {
     struct free_block *next;
 };
 
+/**
+ *  Definitions for request types
+ */
+#define OPEN            0
+#define CLOSE          1
+#define CREATE        2
+#define READ            3
+#define WRITE          4
+#define SEEK            5
+#define LINK             6
+#define UNLINK        7
+#define SYMLINK      8
+#define READLINK    9
+#define MKDIR         10
+#define RMDIR         11
+#define CHDIR          12
+#define STAT            13
+#define SYNC            14
+#define SHUTDOWN 15
 
 /**
- * Definitions for types of messages. To best use memory, different structs
- * should be defined for different types of requests.
+ * Definition for a 32-byte length message that should cover any valid request.
+ * Each generic data member describes what var it can potentially hold.
  */
-struct msg_send {
-    int type;
-    int data1;
-    int data2;
-    void *addr1;
-    void *addr2;
+struct msg {
+    int type; // the type of request
+    int data1; // TODO: use this for storing inode # or [fd] (for Seek) 
+    int data2; // use this for [fd], [len] (for ReadLink), or [offset] (for Seek)
+    int data3; // use this for [size] or [whence] (for Seek)
+    void *addr1; // use this for [pathname] or [oldname] 
+    void *addr2; // use this for [newname], [buf], or [statbuf]
 };
 
 /**

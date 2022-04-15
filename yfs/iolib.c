@@ -5,7 +5,11 @@
 /*
  *  Function prototypes for YFS calls:
  */
-int Open(char *pathname);
+int Open(char *pathname)
+{
+    (void)pathname;
+    return 0;
+}
 
 int Close(int fd)
 {

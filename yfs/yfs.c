@@ -12,14 +12,14 @@
 
 /**
  * Initializes YFS and processes messages.
- * Command: ~comp421/pub/bin/yalnix yfs 
+ * TODO: Run this command: ~comp421/pub/bin/yalnix yfs <args>
  */
 int
 main(int argc, char **argv)
 {
     // Initialize LRU cache and free lists
     if (InitYFS() < 0) {
-        printf("An error occurred during initializing YFS...\n");
+        printf("An error occurred during initialization...\n");
         return ERROR;
     }
 
@@ -33,9 +33,27 @@ main(int argc, char **argv)
             Exec(argv[1], argv + 1);
         } 
         else {
-            // TODO: Receive the message and process
+            int status;
             while (1) {
+                struct msg *msg = malloc(sizeof(struct msg));
+                // TODO: Receive the message and process
+                if ((status = Receive(msg)) < 0) {
+                    printf("Receive failed for msg with type %d...\n", msg->type);
+                    return ERROR;
+                }
+                
                 // TODO: listen for messages here
+                switch (msg->type)
+                {
+                case OPEN:
+                    // Open((char *)(msg->addr1));
+                    break;
+                default:
+                    // printf("Message with type %d was not recognized!\n", msg->type);
+                    break;
+                }
+                
+                // TODO: remember to free memory used by msg on each new request
             }
         }
     }

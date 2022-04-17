@@ -71,22 +71,3 @@ struct msg {
 int InitYFS();
 void HandleRequest(struct msg *);
 
-/*
- *  Function prototypes for YFS calls:
- */
-extern int Open(char *);
-extern int Close(int);
-extern int Create(char *);
-extern int Read(int, void *, int);
-extern int Write(int, void *, int);
-extern int Seek(int, int, int);
-extern int Link(char *, char *);
-extern int Unlink(char *);
-extern int SymLink(char *, char *);
-extern int ReadLink(char *, char *, int);
-extern int MkDir(char *);
-extern int RmDir(char *);
-extern int ChDir(char *);
-extern int Stat(char *, struct Stat *);
-extern int Sync(void);
-extern int Shutdown(void);

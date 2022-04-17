@@ -37,13 +37,13 @@ struct inode *get_inode(short inum)
 		block_num = (inum + 1) / inode_per_block;
 		int status = ReadSector(block_num, inode_block);
 		if (status == ERROR) 
-			return ERROR;
+			return NULL;
 		res = inode_block[inode_per_block - 1];
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
 		int status = ReadSector(block_num, inode_block);
 		if (status == ERROR) 
-			return ERROR;
+			return NULL;
 		res = inode_block[(inum + 1) % inode_per_block - 1];
 	}
 	free(inode_block);
@@ -67,8 +67,8 @@ struct inode *process_path(char *path, int curr_inum)
 	num_blocks = get_num_blocks(start_inode);
 	if (num_blocks == 0) 
 		return NULL;
-	num_dir = start_inode->size / sizeof(struct dir_entry);
-	num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
+	int num_dir = start_inode->size / sizeof(struct dir_entry);
+	int num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
 
 	while (path_ptr < MAXPATHNAMELEN && path[path_ptr] != '\0') {
 		if (start_inode->type != INODE_DIRECTORY) {
@@ -96,7 +96,7 @@ struct inode *process_path(char *path, int curr_inum)
 						return NULL;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
-						if (compare_file_names(dir_ptr[j]->name, component) == 1) {
+						if (compare_filenames(dir_ptr[j]->name, component) == 1) {
 							// if we found the right file/dir, move on/open file
 							short next_inum = dir_ptr[j]->inum;
 							start_inode = get_inode(next_inum);
@@ -122,9 +122,9 @@ struct inode *process_path(char *path, int curr_inum)
 						return NULL;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
-						if (compare_file_names(dir_ptr->name, component) == 1) {
+						if (compare_filenames(dir_ptr[j]->name, component) == 1) {
 							// if we found the right file/dir, move on/open file
-							short next_inum = dir_ptr->inum;
+							short next_inum = dir_ptr[j]->inum;
 							start_inode = get_inode(next_inum);
 							num_blocks = get_num_blocks(start_inode);
 							num_dir = start_inode->size / sizeof(struct dir_entry);
@@ -150,7 +150,7 @@ struct inode *process_path(char *path, int curr_inum)
 							return NULL;
 						int j;
 						for (j = 0; j < num_dir_in_block; j++) {
-							if (compare_file_names(dir_ptr[j]->name, component) == 1) {
+							if (compare_filenames(dir_ptr[j]->name, component) == 1) {
 								// if we found the right file/dir, move on/open file
 								short next_inum = dir_ptr[j]->inum;
 								start_inode = get_inode(next_inum);

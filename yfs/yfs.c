@@ -105,7 +105,7 @@ int InitYFS()
 				for (j = 0; j < NUM_DIRECT; j++) {
 					free_block_list[inode_ptr[blocks_count]->direct[j]] = 1;
 				}	
-				free_block_list[indirect] = 1;
+				free_block_list[inode_ptr[blocks_count]->indirect] = 1;
 			}
 			blocks_count++;
 		}

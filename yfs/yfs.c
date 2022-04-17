@@ -75,7 +75,7 @@ int InitYFS()
 	for (i = 0; i < num_blocks; i++) {
 		free_block_list[i] = 0;
 	}
-	for (i = 0; i < num_inode; i++) {
+	for (i = 0; i < num_inodes; i++) {
 		free_inode_list[i] = 0;
 	}
 	free(header_ptr);

@@ -68,7 +68,7 @@ struct msg {
 /**
  * Definitions for helper functions 
  */
-extern int InitYFS();
+int InitYFS();
 void HandleRequest(struct msg *);
 
 /*

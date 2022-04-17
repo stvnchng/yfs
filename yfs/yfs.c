@@ -3,13 +3,11 @@
 #include <comp421/hardware.h>
 #include <comp421/yalnix.h>
 #include "yfs.h"
+#include "iohelpers.h"
 
 /**
  *  YFS Global Variables
  */
-int num_blocks, num_inodes;
-short *free_block_list;
-short *free_inode_list;
 
 
 /**
@@ -82,6 +80,7 @@ int InitYFS()
 	// Check how many blocks the inodes take
 	int num_iblocks = num_inodes * INODESIZE / BLOCKSIZE + 1;
 	struct inode **inode_ptr = malloc(SECTORSIZE);
+	struct inode *root_ptr = malloc(sizeof(struct inode));
 	for (i = 1; i <= num_iblocks; i++) {
 		int status = ReadSector(i, inode_ptr);
 		if (status == ERROR) {
@@ -93,6 +92,11 @@ int InitYFS()
 		if (i == 1) {
 			inode_ptr++;
 			blocks_count++;	
+			// Now we are pointing to the root inode
+			memcpy(root_ptr, inode_ptr[blocks_count], INODESIZE);
+			curr_inode = root_ptr;
+			// Make sure that we got it right
+			TracePrintf(1, "The root directory inode's type is %d\n", root_ptr->type);
 		}
 		// Loop through all the inode in a block (one sector)
 		while (blocks_count < (SECTORSIZE / INODESIZE)) {
@@ -109,6 +113,7 @@ int InitYFS()
 			blocks_count++;
 		}
 	}
+	free(inode_ptr);
 	// Make sure that the blocks that contain the inodes are not free
 	for (i = 0; i <= num_iblocks; i++) {
 		free_block_list[i] = 0;

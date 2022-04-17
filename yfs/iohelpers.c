@@ -50,7 +50,7 @@ struct inode *get_inode(short inum)
 	return res;
 }
 
-struct inode *process_path(char *path) 
+struct inode *process_path(char *path, int curr_inum) 
 {
 	char component[DIRNAMELEN + 1];
 	int comp_ptr = 0;
@@ -62,18 +62,18 @@ struct inode *process_path(char *path)
 		start_inode = get_inode(1);
 		path_ptr = 1;
 	} else {
-		start_inode = curr_inode;
+		start_inode = get_inode(curr_inum);
 	}
 	num_blocks = get_num_blocks(start_inode);
 	if (num_blocks == 0) 
-		return ERROR;
+		return NULL;
 	num_dir = start_inode->size / sizeof(struct dir_entry);
 	num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
 
 	while (path_ptr < MAXPATHNAMELEN && path[path_ptr] != '\0') {
 		if (start_inode->type != INODE_DIRECTORY) {
 			TracePrintf(0, "The current component in the path is not a directory.\n");
-			return ERROR;
+			return NULL;
 		}
 		if (path[path_ptr] != '/') {
 			component[comp_ptr++] = path[path_ptr];	
@@ -84,7 +84,7 @@ struct inode *process_path(char *path)
 				continue;
 			// if there are more than DIRNAMELEN characters in the component name, return error
 			if (comp_ptr > DIRNAMELEN)
-				return ERROR;
+				return NULL;
 			// otherwise, go down the directory tree
 			int i;
 			int found_next_inode = 0;
@@ -93,7 +93,7 @@ struct inode *process_path(char *path)
 				for (i = 0; i < num_blocks; i++) {
 					int status = ReadSector(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
-						return ERROR;
+						return NULL;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
 						if (compare_file_names(dir_ptr[j]->name, component) == 1) {
@@ -108,7 +108,7 @@ struct inode *process_path(char *path)
 						// if we already went through every file/directory, return error
 						if (--num_dir <= 0) {
 							TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-							return ERROR;
+							return NULL;
 						}
 					}
 					// if found the next node in hierarchy, go to next while loop
@@ -117,9 +117,9 @@ struct inode *process_path(char *path)
 				}	
 			} else {
 				for (i = 0; i < NUM_DIRECT; i++) {
-					status = ReadSector(start_inode->direct[i], dir_ptr);
+					int status = ReadSector(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
-						return ERROR;
+						return NULL;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
 						if (compare_file_names(dir_ptr->name, component) == 1) {
@@ -141,13 +141,13 @@ struct inode *process_path(char *path)
 				// if we didn't find the next inode in the direct blocks, go to the indirect blocks. 	
 				if (!found_next_inode) {
 					int *blocks = malloc(SECTORSIZE);
-					status = ReadSector(start_inode->indirect, blocks);
+					int status = ReadSector(start_inode->indirect, blocks);
 					if (status == ERROR)
-						return ERROR;
+						return NULL;
 					for (i = 0; i < num_blocks - NUM_DIRECT; i++) {
 						status = ReadSector(blocks[i], dir_ptr);
 						if (status == ERROR)
-							return ERROR;
+							return NULL;
 						int j;
 						for (j = 0; j < num_dir_in_block; j++) {
 							if (compare_file_names(dir_ptr[j]->name, component) == 1) {
@@ -162,7 +162,7 @@ struct inode *process_path(char *path)
 							// if we already went through every file/directory, return error
 							if (--num_dir <= 0) {
 								TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-								return ERROR;
+								return NULL;
 							}
 						}
 						// if found the next node in hierarchy, go to next while loop

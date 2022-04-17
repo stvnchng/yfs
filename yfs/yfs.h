@@ -58,11 +58,11 @@ struct free_list_item {
  */
 struct msg {
     int type; // the type of request
-    int data1; // TODO: use this for storing inode # or [fd] (for Seek) 
+    int data1; // use this for storing inode_num or [fd] (for Seek) 
     int data2; // use this for [fd], [len] (for ReadLink), or [offset] (for Seek)
     int data3; // use this for [size] or [whence] (for Seek)
-    void *addr1; // use this for [pathname] or [oldname] 
-    void *addr2; // use this for [newname], [buf], or [statbuf]
+    void *ptr1; // use this for [pathname] or [oldname] 
+    void *ptr2; // use this for [newname], [buf], or [statbuf]
 };
 
 /**
@@ -70,4 +70,24 @@ struct msg {
  */
 int InitYFS();
 void HandleRequest(struct msg *);
+char *GetMessagePath(int srcpid, void *src);
 
+
+/*
+ *  Function prototypes for YFS calls:
+ */
+extern int YFSOpen(struct msg *msg, int pid);
+extern int YFSCreate(struct msg *msg, int pid);
+extern int YFSRead(int, void *, int);
+extern int YFSWrite(int, void *, int);
+extern int YFSSeek(int, int, int);
+extern int YFSLink(char *, char *);
+extern int YFSUnlink(char *);
+// extern int SymLink(char *, char *);
+// extern int ReadLink(char *, char *, int);
+extern int YFSMkDir(char *);
+extern int YFSRmDir(char *);
+extern int YFSChDir(char *);
+extern int YFSStat(char *, struct Stat *);
+extern int YFSSync(void);
+extern int YFSShutdown(void);

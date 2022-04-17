@@ -15,7 +15,6 @@ short *free_inode_list;
 /**
  * Initializes YFS and processes messages.
  * TODO: Run this command: ~comp421/pub/bin/yalnix yfs <args>
- * TODO: Run this to make a new DISK: ~comp421/pub/bin/mkyfs
  */
 int
 main(int argc, char **argv)
@@ -39,7 +38,7 @@ main(int argc, char **argv)
                 struct msg *msg = malloc(sizeof(struct msg));
 
                 HandleRequest(msg);
-                // TODO: free memory used by msg on each new request
+                free(msg);
             }
         }
     }

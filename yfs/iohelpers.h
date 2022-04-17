@@ -1,6 +1,7 @@
 /**
  * variables for iohelper
  */
+struct inode *root_ptr;
 struct inode *curr_inode;
 
 /**

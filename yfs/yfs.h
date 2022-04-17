@@ -71,8 +71,6 @@ struct msg {
 int num_blocks, num_inodes;
 short *free_block_list;
 short *free_inode_list;
-struct inode *root_ptr;
-struct inode *curr_inode; // the inode of the current process's directory
 
 /**
  * Definitions for helper functions 

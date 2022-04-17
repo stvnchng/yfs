@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "iohelpers"
-#include "yfs.h"
+#include <comp421/yalnix.h>
+#include <comp421/filesystem.h>
+#include "iohelpers.h"
 
 int compare_filenames(char *f1, char *f2) 
 {
@@ -31,19 +32,22 @@ struct inode *get_inode(short inum)
 	int inode_per_block = BLOCKSIZE / INODESIZE;
 	int block_num;
 	struct inode **inode_block = malloc(SECTORSIZE);
+	struct inode *res;
 	if ((inum + 1) % inode_per_block == 0) {
 		block_num = (inum + 1) / inode_per_block;
 		int status = ReadSector(block_num, inode_block);
 		if (status == ERROR) 
 			return ERROR;
-		return inode_block[inode_per_block - 1];
+		res = inode_block[inode_per_block - 1];
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
 		int status = ReadSector(block_num, inode_block);
 		if (status == ERROR) 
 			return ERROR;
-		return inode_block[(inum + 1) % inode_per_block - 1];
+		res = inode_block[(inum + 1) % inode_per_block - 1];
 	}
+	free(inode_block);
+	return res;
 }
 
 struct inode *process_path(char *path) 
@@ -55,7 +59,7 @@ struct inode *process_path(char *path)
 
 	struct inode *start_inode;
 	if (path[0] == '/') {
-		start_inode = root_ptr;
+		start_inode = get_inode(1);
 		path_ptr = 1;
 	} else {
 		start_inode = curr_inode;
@@ -172,11 +176,6 @@ struct inode *process_path(char *path)
 			// Reset component to be ready for the next component in path
 			comp_ptr = 0;
 		}
-	}
-
-	if (start_inode->type != INODE_REGULAR) {
-		TracePrintf(0, "Cannot open a non-file.\n");
-		return ERROR;
 	}
 
 	return start_inode;

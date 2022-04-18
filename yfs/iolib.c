@@ -27,8 +27,18 @@ int Open(char *pathname)
 {
     SendMessageWithPath(OPEN, pathname);
 
+    int fd = 0;
+    while (fd < MAX_OPEN_FILES) {
+        if (opened_files[fd].occupied == 0) {
+            opened_files[fd].inum = curr_inum;
+            opened_files[fd].occupied = 1;
+            opened_files[fd].position = 0;
+            break;
+        }
+        fd++;
+    }
     
-    return 0;
+    return fd;
 }
 
 int Close(int fd)
@@ -45,8 +55,6 @@ int Close(int fd)
 
 int Create(char *pathname)
 {
-    // If the file exists, truncate size to 0 and open the empty file
-
     SendMessageWithPath(CREATE, pathname);
     
     int fd = 0;

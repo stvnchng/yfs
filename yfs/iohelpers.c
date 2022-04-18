@@ -69,14 +69,14 @@ int process_path(char *path, int curr_inum)
 	}
 	num_blocks = get_num_blocks(start_inode);
 	if (num_blocks == 0) 
-		return NULL;
+		return ERROR;
 	int num_dir = start_inode->size / sizeof(struct dir_entry);
 	int num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
 
 	while (path_ptr < MAXPATHNAMELEN && path[path_ptr] != '\0') {
 		if (start_inode->type != INODE_DIRECTORY) {
 			TracePrintf(0, "The current component in the path is not a directory.\n");
-			return NULL;
+			return ERROR;
 		}
 		if (path[path_ptr] != '/') {
 			component[comp_ptr++] = path[path_ptr];	
@@ -87,7 +87,7 @@ int process_path(char *path, int curr_inum)
 				continue;
 			// if there are more than DIRNAMELEN characters in the component name, return error
 			if (comp_ptr > DIRNAMELEN)
-				return NULL;
+				return ERROR;
 			// otherwise, go down the directory tree
 			int i;
 			int found_next_inode = 0;
@@ -96,7 +96,7 @@ int process_path(char *path, int curr_inum)
 				for (i = 0; i < num_blocks; i++) {
 					int status = ReadSector(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
-						return NULL;
+						return ERROR;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
 						if (compare_filenames(dir_ptr[j]->name, component) == 1) {
@@ -111,7 +111,7 @@ int process_path(char *path, int curr_inum)
 						// if we already went through every file/directory, return error
 						if (--num_dir <= 0) {
 							TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-							return NULL;
+							return ERROR;
 						}
 					}
 					// if found the next node in hierarchy, go to next while loop
@@ -122,12 +122,12 @@ int process_path(char *path, int curr_inum)
 				for (i = 0; i < NUM_DIRECT; i++) {
 					int status = ReadSector(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
-						return NULL;
+						return ERROR;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
 						if (compare_filenames(dir_ptr[j]->name, component) == 1) {
 							// if we found the right file/dir, move on/open file
-							return_inum = dir_ptr->inum;
+							return_inum = dir_ptr[j]->inum;
 							start_inode = get_inode(return_inum);
 							num_blocks = get_num_blocks(start_inode);
 							num_dir = start_inode->size / sizeof(struct dir_entry);
@@ -146,11 +146,11 @@ int process_path(char *path, int curr_inum)
 					int *blocks = malloc(SECTORSIZE);
 					int status = ReadSector(start_inode->indirect, blocks);
 					if (status == ERROR)
-						return NULL;
+						return ERROR;
 					for (i = 0; i < num_blocks - NUM_DIRECT; i++) {
 						status = ReadSector(blocks[i], dir_ptr);
 						if (status == ERROR)
-							return NULL;
+							return ERROR;
 						int j;
 						for (j = 0; j < num_dir_in_block; j++) {
 							if (compare_filenames(dir_ptr[j]->name, component) == 1) {
@@ -165,7 +165,7 @@ int process_path(char *path, int curr_inum)
 							// if we already went through every file/directory, return error
 							if (--num_dir <= 0) {
 								TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-								return NULL;
+								return ERROR;
 							}
 						}
 						// if found the next node in hierarchy, go to next while loop

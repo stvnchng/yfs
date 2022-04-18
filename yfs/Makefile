@@ -50,8 +50,8 @@ YFS_SRCS = yfs.c yfs_calls.c hash_table.c
 #	your YFS library, and IOLIB_SRCS should  be a list of the
 #	corresponding source files that make up your library.
 #
-IOLIB_OBJS = iolib.o
-IOLIB_SRCS = iolib.c
+IOLIB_OBJS = iolib.o iohelpers.o
+IOLIB_SRCS = iolib.c iohelpers.c
 
 #
 #	You should not have to modify anything else in this Makefile

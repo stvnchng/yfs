@@ -31,37 +31,38 @@ int YFSCreate(struct msg *msg, int pid)
     return 0;
 }
 
-int Read(int fd, void *buf, int size)
+int YFSRead(struct msg *msg, int pid)
 {
-    (void)fd;
-    (void)buf;
-    (void)size;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int Write(int fd, void *buf, int size)
+int YFSWrite(struct msg *msg, int pid)
 {
-    (void)fd;
-    (void)buf;
-    (void)size;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int Seek(int fd, int offset, int whence)
+int YFSSeek(struct msg *msg, int pid)
 {
-    return fd && offset && whence;
-}
-
-int Link(char *oldname, char *newname)
-{
-    (void)oldname;
-    (void)newname;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int Unlink(char *pathname)
-{   
-    (void)pathname;
+int YFSLink(struct msg *msg, int pid)
+{
+    (void)msg;
+    (void)pid;
+    return 0;
+}
+
+int YFSUnlink(struct msg *msg, int pid)
+{
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
@@ -73,32 +74,35 @@ int Unlink(char *pathname)
 //     return len;
 // }
 
-int MkDir(char *pathname)
+int YFSMkDir(struct msg *msg, int pid)
 {
-    (void)pathname;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int RmDir(char *pathname)
+int YFSRmDir(struct msg *msg, int pid)
 {
-    (void)pathname;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int ChDir(char *pathname)
+int YFSChDir(struct msg *msg, int pid)
 {
-    (void)pathname;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int Stat(char *pathname, struct Stat *statbuf)
+int YFSStat(struct msg *msg, int pid)
 {
-    (void)pathname;
-    (void)statbuf;
+    (void)msg;
+    (void)pid;
     return 0;
 }
 
-int Sync(void)
+int YFSSync(void)
 {
     TracePrintf(0, "Writing back all dirty cached inodes and blocks...\n");
     // define head of block cache
@@ -112,10 +116,10 @@ int Sync(void)
     return 0;
 }
 
-int Shutdown(void)
+int YFSShutdown(void)
 {
     TracePrintf(0, "Shutting down YFS server...\n");
-    Sync(); // write back all dirty cached inodes and disk blocks
+    YFSSync(); // write back all dirty cached inodes and disk blocks
     Exit(0);
 }
 
@@ -124,7 +128,7 @@ void HandleRequest(struct msg *msg)
     int pid = Receive(msg);
     if (pid == ERROR) {
         printf("Receive message failed! YFS is shutting down...\n");
-        Shutdown();
+        YFSShutdown();
     }
 
     switch (msg->type)
@@ -142,67 +146,67 @@ void HandleRequest(struct msg *msg)
     case READ:
         TracePrintf(0, "[READ]\n");
         printf("[READ]\n");
-        Read(msg->data2, (char *)(msg->ptr1), msg->data3);
+        YFSRead(msg, pid);
         break;
     case WRITE:
         TracePrintf(0, "[WRITE]\n");
         printf("[WRITE]\n");
-        Write(msg->data2, (char *)(msg->ptr1), msg->data3);
+        YFSWrite(msg, pid);
         break;
     case SEEK:
         TracePrintf(0, "[SEEK]\n");
         printf("[SEEK]\n");
-        Seek(msg->data1, msg->data2, msg->data3);
+        YFSSeek(msg, pid);
         break;
     case LINK:
         TracePrintf(0, "[LINK]\n");
         printf("[LINK]\n");
-        Link((char *)(msg->ptr1), (char *)(msg->ptr2));
+        YFSLink(msg, pid);
         break;
     case UNLINK:
         TracePrintf(0, "[UNLINK]\n");
         printf("[UNLINK]\n");
-        Unlink((char *)(msg->ptr1));
+        YFSUnlink(msg, pid);
         break;
     case SYMLINK:
         TracePrintf(0, "[SYMLINK]\n");
         printf("[SYMLINK]\n");
-        // SymLink((char *)(msg->addr1), (char *)(msg->addr2));
+        // SymLink(msg, pid);
         break;
     case READLINK:
         TracePrintf(0, "[READLINK]\n");
         printf("[READLINK]\n");
-        // ReadLink((char *)(msg->ptr1), (char *)(msg->ptr2), msg->data2);
+        // ReadLink(msg, pid);
         break;
     case MKDIR:
         TracePrintf(0, "[MKDIR]\n");
         printf("[MKDIR]\n");
-        MkDir((char *)(msg->ptr1));
+        YFSMkDir(msg, pid);
         break;
     case RMDIR:
         TracePrintf(0, "[RMDIR]\n");
         printf("[RMDIR]\n");
-        RmDir((char *)(msg->ptr1));
+        YFSRmDir(msg, pid);
         break;
     case CHDIR:
         TracePrintf(0, "[CHDIR]\n");
         printf("[CHDIR]\n");
-        ChDir((char *)(msg->ptr1));
+        YFSChDir(msg, pid);
         break;
     case STAT:
         TracePrintf(0, "[STAT]\n");
         printf("[STAT]\n");
-        Stat((char *)(msg->ptr1), (struct Stat *)(msg->ptr2));
+        YFSStat(msg, pid);
         break;
     case SYNC:
         TracePrintf(0, "[SYNC]\n");
         printf("[SYNC]\n");
-        Sync();
+        YFSSync();
         break;
     case SHUTDOWN:
         TracePrintf(0, "[SHUTDOWN]\n");
         printf("[SHUTDOWN]\n");
-        Shutdown();
+        YFSShutdown();
         break;
     default:
         printf("Message with type %d was not recognized!\n", msg->type);

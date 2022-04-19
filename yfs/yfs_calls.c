@@ -3,6 +3,7 @@
 #include <string.h>
 #include <comp421/yalnix.h>
 #include "yfs.h"
+#include "iohelpers.h"
 
 
 /*
@@ -10,23 +11,35 @@
  */
 int YFSOpen(struct msg *msg, int pid)
 {
-    if (msg == NULL) {
+    if (GetMessagePath(pid, msg->ptr1) == NULL) {
+        printf("Bad arguments passed to YFSOpen\n");
         return ERROR;
     }
 
-    return pid;
+    // search through hierarchy for a valid inum
+    int inum = process_path(msg->ptr1, msg->data1, OPEN);
+    if (inum == ERROR) return ERROR;
+    msg->data1 = inum;
+  
+    if (get_inode(inum) == NULL) {
+        return ERROR;
+    }
+
+    return inum;
 }
 
 int YFSCreate(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1);
-    int inum = msg->data1;
-
-    if (inum < 0 || pathname == NULL) {
-        printf("Bad arguments passed to Create\n");
+    if (GetMessagePath(pid, msg->ptr1) == NULL) {
+        printf("Bad arguments passed to YFSCreate\n");
         return ERROR;
     }
 
+    int inum = process_path(msg->ptr1, msg->data1, OPEN);
+    if (inum == ERROR) return ERROR;
+    msg->data1 = inum;
+
+    
 
     return 0;
 }
@@ -223,7 +236,7 @@ char *GetMessagePath(int srcpid, void *src)
 {
     char *dest = malloc(sizeof(char) *  MAXPATHNAMELEN);
     if (CopyFrom(srcpid, dest, src, MAXPATHNAMELEN) == ERROR) {
-        printf("Error occurred during CopyFrom in GetMessagePath\n");
+        printf("Error occurred at CopyFrom in GetMessagePath\n");
         return NULL;
     }
     return dest;

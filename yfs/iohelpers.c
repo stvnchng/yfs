@@ -21,6 +21,7 @@ int compare_filenames(char *f1, char *f2)
 
 int get_num_blocks(struct inode *inode) 
 {
+	TracePrintf(1, "The inode has a size of %d\n", inode->size);
 	if (inode->size % BLOCKSIZE == 0) {
 		return inode->size / BLOCKSIZE;
 	} else {
@@ -32,20 +33,24 @@ struct inode *get_inode(short inum)
 {
 	int inode_per_block = BLOCKSIZE / INODESIZE;
 	int block_num;
-	struct inode **inode_block = malloc(SECTORSIZE);
+	struct inode *inode_block = malloc(SECTORSIZE);
 	struct inode *res;
 	if ((inum + 1) % inode_per_block == 0) {
 		block_num = (inum + 1) / inode_per_block;
 		int status = ReadSector(block_num, inode_block);
-		if (status == ERROR) 
+		if (status == ERROR) { 
+			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
-		res = inode_block[inode_per_block - 1];
+		}
+		res = &inode_block[inode_per_block - 1];
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
 		int status = ReadSector(block_num, inode_block);
-		if (status == ERROR) 
+		if (status == ERROR) { 
+			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
-		res = inode_block[(inum + 1) % inode_per_block - 1];
+		}
+		res = &inode_block[(inum + 1) % inode_per_block - 1];
 	}
 	free(inode_block);
 	return res;
@@ -68,21 +73,30 @@ int process_path(char *path, int curr_inum, int call_type)
 		start_inode = get_inode(curr_inum);
 		return_inum = curr_inum;
 	}
-	num_blocks = get_num_blocks(start_inode);
-	if (num_blocks == 0) 
+	if (start_inode == NULL) {
 		return ERROR;
+	}
+	TracePrintf(1, "start_inode's addr is: %p\n", start_inode);
+	num_blocks = get_num_blocks(start_inode);
+	if (num_blocks == 0) {
+		TracePrintf(0, "the inode has 0 blocks.\n");	
+		return ERROR;
+	}
 	int num_dir = start_inode->size / sizeof(struct dir_entry);
 	int num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
 
 	while (path_ptr < MAXPATHNAMELEN && path[path_ptr] != '\0') {
 		if (start_inode->type != INODE_DIRECTORY) {
-			TracePrintf(0, "The current component in the path is not a directory.\n");
+			TracePrintf(0, "The current inode is not a directory.\n");
+			TracePrintf(1, "The current inode is a %d\n", start_inode->type);
 			return ERROR;
 		}
 		if (path[path_ptr] != '/') {
+			printf("%c\n", path[path_ptr]);
 			component[comp_ptr++] = path[path_ptr];	
 		} else {
 			component[comp_ptr] = '\0';
+			TracePrintf(1, "The new component is %s\n", component);
 			// if there are nothing between two slashes, continue
 			if (comp_ptr == 0) 
 				continue;
@@ -244,6 +258,7 @@ short remove_free_block()
 
 int create_file(char *name) 
 {
+	(void) name;
 	return ERROR;
 }
 

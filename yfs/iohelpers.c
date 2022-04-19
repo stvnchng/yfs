@@ -3,6 +3,7 @@
 #include <comp421/yalnix.h>
 #include <comp421/filesystem.h>
 #include "iohelpers.h"
+#include "yfs.h"
 
 int compare_filenames(char *f1, char *f2) 
 {
@@ -184,6 +185,49 @@ int process_path(char *path, int curr_inum)
 	return return_inum;
 }
 
+void add_free_inode(int inum)
+{
+	free_inode_list[inum - 1] = 1;	
+}
+
+short remove_free_inode(short type) 
+{
+	int i;
+	for (i = 0; i < num_inodes; i++) {
+		// if we found a free inode in our list, remove it
+		if (free_inode_list[i] == 1) {
+			struct inode *free_inode = get_inode(i + 1);
+			// verify the type first
+			if (free_inode->type != INODE_FREE) {
+				TracePrintf(0, "ERROR: the inode is suppose to be a free inode. Skip.\n");
+				continue;
+			}	
+			free_inode_list[i] = 0;
+			free_inode->type = type;
+			return i + 1;
+		}
+	}
+	return ERROR;
+}
+
+void add_free_block(int blocknum)
+{
+	free_block_list[blocknum - 1] = 1;
+}
+
+short remove_free_block() 
+{
+	int i;
+	for (i = 0; i < num_blocks; i++) {
+		// if we found a free block, remove it
+		if (free_block_list[i] == 1) {
+			free_block_list[i] = 0;
+			return i + 1;
+		}
+	}
+	TracePrintf(0, "Cannot find a free block.\n");
+	return ERROR;
+}
 
 
 

@@ -5,3 +5,7 @@ int compare_filenames(char *f1, char *f2);
 int get_num_blocks(struct inode *inode);
 struct inode *get_inode(short inum);
 int process_path(char *path, int curr_inum);
+void add_free_inode(int inum);
+short remove_free_inode();
+void add_free_block(int blocknum);
+short remove_free_block();

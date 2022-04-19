@@ -56,8 +56,9 @@ int InitYFS()
     block_cache->ht = block_ht;
 
 	// Get the number of blocks and inodes
-	struct fs_header *header_ptr = malloc(SECTORSIZE);
-	int status = ReadSector(1, header_ptr);
+	void *temp_ptr = malloc(SECTORSIZE);
+	int status = ReadSector(1, temp_ptr);
+	struct fs_header *header_ptr = (struct fs_header *)temp_ptr;
 	if (status == ERROR) { // Error handling
 		TracePrintf(0, "Unable to read file system header.\n");
 		return ERROR;
@@ -75,13 +76,13 @@ int InitYFS()
 	for (i = 0; i < num_inodes; i++) {
 		free_inode_list[i] = 0;
 	}
-	free(header_ptr);
 
 	// Check how many blocks the inodes take
 	int num_iblocks = num_inodes * INODESIZE / BLOCKSIZE + 1;
-	struct inode **inode_ptr = malloc(SECTORSIZE);
+	struct inode *inode_ptr;
 	for (i = 1; i <= num_iblocks; i++) {
-		int status = ReadSector(i, inode_ptr);
+		int status = ReadSector(i, temp_ptr);
+		inode_ptr = (struct inode *)temp_ptr;
 		if (status == ERROR) {
 			TracePrintf(0, "Unable to read inode block.\n");
 			return ERROR;
@@ -95,24 +96,23 @@ int InitYFS()
 		// Loop through all the inode in a block (one sector)
 		while (blocks_count < (SECTORSIZE / INODESIZE)) {
 			// if inode is free, add it to the free inode list
-			if (inode_ptr[blocks_count]->type == INODE_FREE) {
+			if (inode_ptr[blocks_count].type == INODE_FREE) {
 				free_inode_list[(i - 1) * (SECTORSIZE / INODESIZE) + blocks_count] = 1;
 				// add all the blocks it uses to free block list
 				int j;
 				for (j = 0; j < NUM_DIRECT; j++) {
-					free_block_list[inode_ptr[blocks_count]->direct[j]] = 1;
+					free_block_list[inode_ptr[blocks_count].direct[j]] = 1;
 				}	
-				free_block_list[inode_ptr[blocks_count]->indirect] = 1;
+				free_block_list[inode_ptr[blocks_count].indirect] = 1;
 			}
 			blocks_count++;
 		}
 	}
-	free(inode_ptr);
+	free(temp_ptr);
 	// Make sure that the blocks that contain the inodes are not free
 	for (i = 0; i <= num_iblocks; i++) {
 		free_block_list[i] = 0;
 	}
-
 
     return 0;
 }

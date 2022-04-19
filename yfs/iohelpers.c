@@ -176,6 +176,19 @@ int process_path(char *path, int curr_inum, int call_type)
 					free(blocks);
 				}
 			}
+			if (!found_next_inode) {
+				switch (call_type) {
+					case 0:
+						TracePrintf(0, "Cannot find the right file to open\n");
+						return ERROR;
+					case 1:
+						// if it is create calling process path, then create a file that is named component.
+						create_file(component);
+						break;
+					default:
+						break;
+				}
+			} 
 			free(dir_ptr);
 			// Reset component to be ready for the next component in path
 			comp_ptr = 0;
@@ -226,6 +239,11 @@ short remove_free_block()
 		}
 	}
 	TracePrintf(0, "Cannot find a free block.\n");
+	return ERROR;
+}
+
+int create_file(char *name) 
+{
 	return ERROR;
 }
 

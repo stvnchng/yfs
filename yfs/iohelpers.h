@@ -9,3 +9,4 @@ void add_free_inode(int inum);
 short remove_free_inode(short type);
 void add_free_block(int blocknum);
 short remove_free_block();
+int create_file(char *name);

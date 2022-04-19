@@ -77,5 +77,5 @@ short *free_inode_list;
  */
 int InitYFS();
 void HandleRequest(struct msg *);
-char *GetMessagePath(int srcpid, void *src);
+char *GetMessagePath(int srcpid, void *src, int pathlen);
 

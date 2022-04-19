@@ -11,15 +11,20 @@
  */
 int YFSOpen(struct msg *msg, int pid)
 {
-    if (GetMessagePath(pid, msg->ptr1) == NULL) {
-        printf("Bad arguments passed to YFSOpen\n");
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    if (pathname == NULL) {
+        printf("Bad arguments passed to YFSCreate\n");
         return ERROR;
     }
 
-    // search through hierarchy for a valid inum
-    int inum = process_path(msg->ptr1, msg->data1, OPEN);
+    int inum = process_path(pathname, msg->data1, OPEN);
     if (inum == ERROR) return ERROR;
     msg->data1 = inum;
+
+    // // search through hierarchy for a valid inum
+    // int inum = process_path(msg->ptr1, msg->data1, OPEN);
+    // if (inum == ERROR) return ERROR;
+    // msg->data1 = inum;
   
     if (get_inode(inum) == NULL) {
         return ERROR;
@@ -30,12 +35,13 @@ int YFSOpen(struct msg *msg, int pid)
 
 int YFSCreate(struct msg *msg, int pid)
 {
-    if (GetMessagePath(pid, msg->ptr1) == NULL) {
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    if (pathname == NULL) {
         printf("Bad arguments passed to YFSCreate\n");
         return ERROR;
     }
 
-    int inum = process_path(msg->ptr1, msg->data1, OPEN);
+    int inum = process_path(pathname, msg->data1, OPEN);
     if (inum == ERROR) return ERROR;
     msg->data1 = inum;
 
@@ -232,10 +238,10 @@ void HandleRequest(struct msg *msg)
     }
 }
 
-char *GetMessagePath(int srcpid, void *src)
+char *GetMessagePath(int srcpid, void *src, int pathlen)
 {
-    char *dest = malloc(sizeof(char) *  MAXPATHNAMELEN);
-    if (CopyFrom(srcpid, dest, src, MAXPATHNAMELEN) == ERROR) {
+    char *dest = malloc(sizeof(char) *  pathlen);
+    if (CopyFrom(srcpid, dest, src, pathlen) == ERROR) {
         printf("Error occurred at CopyFrom in GetMessagePath\n");
         return NULL;
     }

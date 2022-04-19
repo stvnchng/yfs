@@ -19,6 +19,7 @@ int curr_inum = ROOTINODE;
  */
 int SendMessage(int type);
 int SendMessageWithPath(int type, char *pathname);
+// int SendRWMessage(int type, struct opened_file curr_file, );
 
 /*
  *  YFS Message Send Handlers
@@ -85,15 +86,23 @@ int Read(int fd, void *buf, int size)
     return 0;
 }
 
-int Write(int fd, void *buf, int size)
+int Write(int  fd, void *buf, int size)
 {
-    (void)fd;
-    (void)buf;
-    (void)size;
-    return 0;
+    struct opened_file curr_file = opened_files[fd];
+    if (curr_file.occupied == 0 || fd < 0 || fd > MAX_OPEN_FILES - 1 || buf == NULL || size < 0) {
+        printf("Bad arguments to Write\n");
+        return ERROR;
+    }
+
+    int bytes_written = 0;
+
+
+    // increment position of file to be written
+    curr_file.position += bytes_written;
+    return bytes_written;
 }
 
-int Seek(int fd, int offset, int whence)
+int Seek(int  fd, int offset, int whence)
 {
     return fd && offset && whence;
 }
@@ -112,12 +121,7 @@ int Unlink(char *pathname)
 }
 
 // int SymLink(char *, char *);
-// int ReadLink(char *pathname, char *buf, int len)
-// {
-//     (void)pathname;
-//     (void)buf;
-//     return len;
-// }
+// int ReadLink(char *, char *, int);
 
 int MkDir(char *pathname)
 {
@@ -178,7 +182,7 @@ int SendMessageWithPath(int type, char *pathname)
 
     int i = 0;
     while (i < MAX_OPEN_FILES) {
-        if (!opened_files[i].occupied) {
+        if (opened_files[i].occupied == 0) {
             break;
         }
     }
@@ -191,6 +195,7 @@ int SendMessageWithPath(int type, char *pathname)
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
     msg->data1 = curr_inum; // store inode_num
+    msg->data2 = strlen(pathname);
     msg->ptr1 = pathname;
 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
@@ -201,3 +206,13 @@ int SendMessageWithPath(int type, char *pathname)
     free(msg);
     return i; // return fd
 }
+
+// int SendRWMessage(int type, struct opened_file curr_file, void* buf, int size)
+// {
+//     int inum = curr_file.inum;
+//     int rw_pos = curr_file.position;
+
+
+
+//     return 0;
+// }

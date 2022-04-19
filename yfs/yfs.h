@@ -79,22 +79,3 @@ int InitYFS();
 void HandleRequest(struct msg *);
 char *GetMessagePath(int srcpid, void *src);
 
-
-/*
- *  Function prototypes for YFS calls:
- */
-extern int YFSOpen(struct msg *msg, int pid);
-extern int YFSCreate(struct msg *msg, int pid);
-extern int YFSRead(struct msg *msg, int pid);
-extern int YFSWrite(struct msg *msg, int pid);
-extern int YFSSeek(struct msg *msg, int pid);
-extern int YFSLink(struct msg *msg, int pid);
-extern int YFSUnlink(struct msg *msg, int pid);
-// extern int SymLink(char *, char *);
-// extern int ReadLink(char *, char *, int);
-extern int YFSMkDir(struct msg *msg, int pid);
-extern int YFSRmDir(struct msg *msg, int pid);
-extern int YFSChDir(struct msg *msg, int pid);
-extern int YFSStat(struct msg *msg, int pid);
-extern int YFSSync(void);
-extern int YFSShutdown(void);

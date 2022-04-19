@@ -51,7 +51,7 @@ struct inode *get_inode(short inum)
 	return res;
 }
 
-int process_path(char *path, int curr_inum) 
+int process_path(char *path, int curr_inum, int call_type) 
 {
 	char component[DIRNAMELEN + 1];
 	int comp_ptr = 0;

@@ -286,7 +286,7 @@ int process_path(char *path, int curr_inum, int call_type)
 			TracePrintf(0, "MKDIR fail. The directory already exists.\n");
 			return ERROR;
 		case RMDIR:
-			return remove_dir(start_inode, parent_inode, parent_inum);		
+			return remove_dir_entry(start_inode, parent_inode, return_inum, parent_inum);		
 	}
 	if (call_type == MKDIR) {
 		TracePrintf(0, "MKDIR fail. The directory already exists.\n");
@@ -516,34 +516,188 @@ int create_stuff(char *name, int parent_inum, short type)
 	return return_inum;
 }
 
-int remove_dir(struct inode *child_inode, struct inode *parent_inode, int parent_inum) 
+int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int child_inum,  int parent_inum) 
 {
 	TracePrintf(1, "the parent's inum is %d\n", parent_inum);
 	// both inodes needs to be directories
-	if (parent_inode->type != INODE_DIRECTORY || child_inode->type != INODE_DIRECTORY) {
-		TracePrintf(0, "Both parent and child inode need to be directories. \n");
+	if (parent_inode->type != INODE_DIRECTORY) {
+		TracePrintf(0, "The parent inode needs to be a directory\n");
 		return ERROR;
 	}
 
-	// if there are more than . and .. in the inode to be removed, then return an ERROR
-	int num_dir = get_num_dir(child_inode);
-	if (num_dir > 2) {
-		TracePrintf(0, "RMDIR. There are more than . and .. in the directory.\n");
-		return ERROR;
+	if (child_inode->type == INODE_DIRECTORY) {
+		// if there are more than . and .. in the inode to be removed, then return an ERROR
+		int num_dir = get_num_dir(child_inode);
+		if (num_dir > 2) {
+			TracePrintf(0, "RMDIR. There are more than . and .. in the directory.\n");
+			return ERROR;
+		}
 	}
 
-	// remove the child from its parent. 
+	// remove the child from its parent.
+	int parent_num_blocks = get_num_blocks(parent_inode);
+   	int parent_num_dir = get_num_dir(parent_inode);
+	
+	unsigned int i;
+	int status;
+	struct dir_entry entries[BLOCKSIZE/sizeof(struct dir_entry)];
+	if (parent_num_dir == 3) {
+		TracePrintf(1, "The parent inode only has one removable dir_entry\n");
+	} else {
+		// if the parent inode have more than one removable inode. Remove the child inode, and shift
+		// the last possible inode to there. 
+		TracePrintf(1, "The parent inode has %d removable dir_entry\n", parent_num_dir - 2);
+		// Get the last dir_entry
+		if (parent_num_blocks <= NUM_DIRECT) {
+			status = ReadSector(parent_inode->direct[parent_num_blocks-1], entries);
+		} else {
+			int *indirect_blocks = malloc(SECTORSIZE);
+			status = ReadSector(parent_inode->indirect, indirect_blocks);
+			if (status == ERROR) {
+				TracePrintf(0, "Failed to read from block %d\n", parent_inode->indirect);
+				return ERROR;
+			}
+			int indirect_index = parent_num_blocks - NUM_DIRECT - 1;
+			status = ReadSector(indirect_blocks[indirect_index], entries);
+			free(indirect_blocks);
+		}
+		if (status == ERROR) {
+			TracePrintf(0, "Failed to read from block something in remove_dir_entry\n");
+			return ERROR;
+		}
+		int last_dir_index;
+		if (parent_num_dir % num_dir_in_block == 0) {
+			last_dir_index = num_dir_in_block - 1;
+		} else {
+			last_dir_index = parent_num_dir % num_dir_in_block - 1;	
+		}
+		// Get teh last dir_entry's inum and name
+		int last_dir_inum = entries[last_dir_index].inum;
+		char *last_dir_name = malloc(DIRNAMELEN);
+		memcpy(last_dir_name, entries[last_dir_index].name, DIRNAMELEN);
+		
+		// Now find the child inode
+		int child_block = find_dir_entry_block(child_inum, parent_inode, parent_num_blocks, parent_num_dir);
+		if (child_block == ERROR) {
+			free(last_dir_name);
+			return ERROR;
+		}		
+		status = ReadSector(child_block, entries);
+		if (status == ERROR) {
+			free(last_dir_name);
+			TracePrintf(0, "Cannot read from block %d\n", child_block);
+		 	return ERROR;
+		}
+		for (i = 0; i < BLOCKSIZE/sizeof(struct dir_entry); i++) {
+			if (entries[i].inum == child_inum) {
+				entries[i].inum = last_dir_inum;
+				memcpy(entries[i].name, last_dir_name, DIRNAMELEN);
+				free(last_dir_name);
+			}
+		}
+	}	
+	// decrease the parent inode's size
+	parent_inode->size -= sizeof(struct dir_entry);
 
 	// free the inode and the block it is allocated
-	//add_free_inode(child_inum);
-	int free_block = child_inode->direct[0];
-	add_free_block(free_block);
+	int child_num_blocks = get_num_blocks(child_inode);
+	if (child_num_blocks <= NUM_DIRECT) {
+		for (i = 0; i < (unsigned int) child_num_blocks; i++) {
+			add_free_block(child_inode->direct[i]);
+		}
+	} else {
+		for (i = 0; i < NUM_DIRECT; i++) {
+			add_free_block(child_inode->direct[i]);
+		}
+		int num_indirect = child_num_blocks - NUM_DIRECT;
+		int *indirect_blocks = malloc(SECTORSIZE);
+		status = ReadSector(child_inode->indirect, indirect_blocks);
+		if (status == ERROR) {
+			free(indirect_blocks);
+			return ERROR;		
+		}
+		for (i = 0; i < (unsigned int) num_indirect; i++) {
+			add_free_block(indirect_blocks[i]);
+		}
+		add_free_block(child_inode->indirect);
+	}
+	add_free_inode(child_inum);
+	// add_free_block(free_block);
 
 	return ERROR;
 }
 
-
-
+/**
+ * Find a block that contains the dir_entry with inum
+ */
+int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_blocks, int parent_num_dir)
+{
+	unsigned int i, j;
+	int status;
+	struct dir_entry return_block[SECTORSIZE/sizeof(struct dir_entry)];
+	if (parent_num_blocks <= NUM_DIRECT) { // if the parent inode only needs direct blocks
+		for (i = 0; i < (unsigned int) parent_num_blocks; i++) {
+			status = ReadSector(parent_inode->direct[i], return_block);
+			if (status == ERROR) {
+				TracePrintf(0, "Failed to read from block %d\n", parent_inode->direct[i]);
+				return ERROR;
+			}
+			for (j = 0; j < SECTORSIZE/sizeof(struct dir_entry); j++) {
+				if (return_block[j].inum == inum) {
+					TracePrintf(0, "Block %d contains inode %d", parent_inode->direct[i], inum);
+					return parent_inode->direct[i];
+				}
+				if (--parent_num_dir <= 0) {
+					TracePrintf(0, "Unable to find a block that contains inode %d\n", inum);
+					return ERROR;
+				}
+			}
+		}
+	} else { // if searching for indirect locks might also be needed
+		for (i = 0; i < NUM_DIRECT; i++) {
+			status = ReadSector(parent_inode->direct[i], return_block);
+			if (status == ERROR) {
+				TracePrintf(0, "Failed to read from block %d\n", parent_inode->direct[i]);
+				return ERROR;
+			}
+			for (j = 0; j < SECTORSIZE/sizeof(struct dir_entry); j++) {
+				if (return_block[j].inum == inum) {
+					TracePrintf(0, "Block %d contains inode %d", parent_inode->direct[i], inum);
+					return parent_inode->direct[i];
+				}
+				--parent_num_dir;
+			}
+		}
+		// Read from the indirect block
+		int *indirect_block = malloc(SECTORSIZE);
+		status = ReadSector(parent_inode->indirect, indirect_block);
+		if (status == ERROR) {
+			TracePrintf(0, "Failed to read from block %d\n", parent_inode->indirect);
+			return ERROR;
+		}
+		for (i = 0; i < SECTORSIZE/sizeof(int); i++) {
+			int block_num = indirect_block[i];
+			status = ReadSector(block_num, return_block);
+			if (status == ERROR) {
+				TracePrintf(0, "Failed to read from block %d\n", block_num);
+				return ERROR;
+			}
+			for (j = 0; j < SECTORSIZE/sizeof(struct dir_entry); j++) {
+				if (return_block[j].inum == inum) {
+					TracePrintf(0, "Block %d contains inode %d", block_num, inum);
+					return block_num;
+				}
+				if (--parent_num_dir <= 0) {
+					TracePrintf(0, "Unable to find a block that contains inode %d\n", inum);
+					return ERROR;
+				}
+			}
+		}
+	}
+	
+	TracePrintf(0, "Unable to find a block that contains inode %d\n", inum);
+	return ERROR;
+}
 
 
 

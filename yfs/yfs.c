@@ -140,6 +140,7 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	// First check if key already exists
 	struct cache_item *item = GetFromCache(cache, num);
 	if (item != NULL) {
+		TracePrintf(1, "There is already a key in the cache\n");
 		// If so, we reassign its value and move it to the head
 		item->value = value;
 		RemoveFromCache(cache, item);
@@ -178,6 +179,7 @@ void AssignHead(struct cache *cache, struct cache_item *item)
 	if (cache->head == item) return;
 	item->prev = NULL;
 	item->next = cache->head;
+	free(item->value);
 	// Check for existing head item
 	if (cache->head != NULL) cache->head->prev = item;
 	// Assign tail if nonexistent

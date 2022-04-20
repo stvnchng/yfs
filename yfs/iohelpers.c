@@ -42,7 +42,9 @@ struct inode *get_inode(short inum)
 {
 	// Check the inode_cache first
 	struct inode *inode = (struct inode *) GetFromCache(inode_cache, inum);
-	if (inode != NULL) return inode;
+	if (inode != NULL) {	
+		return inode;
+	}
 	free(inode);
 	int block_num;
 	struct inode *inode_block = malloc(SECTORSIZE);
@@ -50,19 +52,20 @@ struct inode *get_inode(short inum)
 	if ((inum + 1) % inode_per_block == 0) {
 		block_num = (inum + 1) / inode_per_block;
 		if (ReadSector(block_num, inode_block) == ERROR) { 
+			free(inode_block);
 			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
 		}
 		res = &inode_block[inode_per_block - 1];
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
-		if (ReadSector(block_num, inode_block) == ERROR) { 
+		if (ReadSector(block_num, inode_block) == ERROR) {
+		   	free(inode_block);	
 			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
 		}
 		res = &inode_block[(inum + 1) % inode_per_block - 1];
 	}
-	free(inode_block);
 	PutIntoCache(inode_cache, inum, res);
 	return res;
 }
@@ -290,11 +293,9 @@ int process_path(char *path, int curr_inum, int call_type)
 			return ERROR;
 		case RMDIR:
 			return remove_dir_entry(start_inode, parent_inode, return_inum, parent_inum);		
+		default:
+			break;
 	}
-	if (call_type == MKDIR) {
-		TracePrintf(0, "MKDIR fail. The directory already exists.\n");
-		return ERROR;
-	} 
 	
 	return return_inum;
 }

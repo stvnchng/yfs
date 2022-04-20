@@ -37,6 +37,7 @@ int Open(char *pathname)
         if (opened_files[fd].occupied == 0) {
             break;
         }
+        fd++;
     }
 
     if (fd == MAX_OPEN_FILES) {
@@ -75,6 +76,7 @@ int Create(char *pathname)
         if (opened_files[fd].occupied == 0) {
             break;
         }
+        fd++;
     }
 
     if (fd == MAX_OPEN_FILES) {
@@ -137,9 +139,32 @@ int Write(int fd, void *buf, int size)
     return bytes_written;
 }
 
-int Seek(int  fd, int offset, int whence)
+int Seek(int  fd, int offset, int whence) // TODO: needs review
 {
-    return fd && offset && whence;
+    if (fd < 0 || fd > MAX_OPEN_FILES - 1 || (whence != SEEK_CUR && whence != SEEK_END && whence != SEEK_SET)) {
+        printf("Invalid args to Seek\n");
+        return ERROR;
+    }
+
+    if (opened_files[fd].occupied == 0) {
+        printf("Error: Seek called on a nonexistent file\n");
+        return ERROR;
+    }
+
+    struct msg *msg = malloc(sizeof(struct msg));
+    msg->type = SEEK;
+    msg->data1 = opened_files[fd].inum; //store inum
+    msg->data2 = offset; //store len for server CopyFrom operation 
+    msg->data3 = whence; //store len for server CopyFrom operation 
+    // msg->ptr1 = ; 
+    //TODO need to update offset and store more members depending on yfsseek
+    if (Send((void *) msg, -FILE_SERVER) == ERROR) {
+        free(msg);
+        printf("Error during Send for STAT\n");
+        return ERROR;
+    }
+    free(msg);
+    return opened_files[fd].position; //return new offset 
 }
 
 int Link(char *oldname, char *newname)

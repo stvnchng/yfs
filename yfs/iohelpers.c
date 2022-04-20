@@ -64,6 +64,42 @@ struct inode *get_inode(short inum)
 	return res;
 }
 
+int write_inode(short inum, struct inode *inode) 
+{
+	int status;
+	int block_num;
+	struct inode *inode_block = malloc(SECTORSIZE);
+	// Change the block's data to what we want
+	if ((inum + 1) % inode_per_block == 0) {
+		block_num = (inum + 1) / inode_per_block;
+		status = ReadSector(block_num, inode_block);
+		if (status == ERROR) { 
+			TracePrintf(0, "Cannot read the block to get inode.\n");
+			return ERROR;
+		}
+		inode_block[inode_per_block - 1] = *inode;
+	} else {
+		block_num = (inum + 1) / inode_per_block + 1;
+		status = ReadSector(block_num, inode_block);
+		if (status == ERROR) { 
+			TracePrintf(0, "Cannot read the block to get inode.\n");
+			return ERROR;
+		}
+		inode_block[(inum + 1) % inode_per_block - 1] = *inode;
+	}
+
+	// Write to the block with our new inode in it. 
+	status = WriteSector(block_num, inode_block);
+	if (status == ERROR) {
+		TracePrintf(0, "Cannot write to block %d\n", block_num);
+		return ERROR;
+	}
+	
+	free(inode_block);
+
+	return 0;
+}	
+
 int process_path(char *path, int curr_inum, int call_type) 
 {
 	char component[DIRNAMELEN + 1];
@@ -218,7 +254,9 @@ int process_path(char *path, int curr_inum, int call_type)
 	}
 	
 	if (call_type == CREATE) {
-		return create_file(component, return_inum);
+		return create_stuff(component, return_inum, INODE_REGULAR);
+	} else if (call_type == MKDIR) {
+		return create_stuff(component, return_inum, INODE_DIRECTORY);
 	}
 
 	return return_inum;
@@ -268,7 +306,7 @@ int remove_free_block()
 	return ERROR;
 }
 
-int create_file(char *name, int parent_inum) 
+int create_stuff(char *name, int parent_inum, short type) 
 {
 	TracePrintf(0, "Creating a file named %s\n", name);
 	// Get the parent inode
@@ -294,8 +332,13 @@ int create_file(char *name, int parent_inum)
 	int num_blocks = get_num_blocks(parent_inode);
 	int num_dir = get_num_dir(parent_inode);
 
+	if (num_blocks == NUM_DIRECT && num_dir % num_dir_in_block == 0) {
+		parent_inode->indirect = remove_free_block();
+		num_blocks++;
+	}
+
 	int status;
-	if (num_blocks < NUM_DIRECT) {
+	if (num_blocks <= NUM_DIRECT) {
 		// allocate the new inode in a direct block
 		if (num_dir % num_dir_in_block == 0) {
 			// all the old blocks are filled up. need a new block
@@ -397,32 +440,42 @@ int create_file(char *name, int parent_inum)
 
 	// Increase the size of the parent inode
 	parent_inode->size += sizeof(struct dir_entry);
-	int parent_block_num;
-	if ((parent_inum + 1) % inode_per_block == 0) {
-		parent_block_num = (parent_inum + 1) / inode_per_block;
-	} else {	
-		parent_block_num = (parent_inum + 1) / inode_per_block + 1;
-	}
-	struct inode inodes[inode_per_block];
-	status = ReadSector(parent_block_num, inodes);
-	if (status == ERROR) {
-		TracePrintf(0, "Failed to read from sector %d\n", parent_block_num);
-	}
-	// Write back the block
-	if ((parent_inum + 1) % inode_per_block == 0) {
-		inodes[inode_per_block - 1].size += sizeof(struct dir_entry);
-	} else {	
-		inodes[parent_inum % inode_per_block].size += sizeof(struct dir_entry);
-	}
-	status = WriteSector(parent_block_num, inodes);
-	if (status == ERROR) {
-		TracePrintf(0, "Failed to write to sector %d\n", parent_block_num);
+	if (write_inode(parent_inum, parent_inode) == ERROR) {
+		free(new_entry);
+		return ERROR;
 	}
 
 	int return_inum = new_entry->inum;
-	TracePrintf(0, "the returning inode is %d\n", return_inum);
+	// Set up the new inode
+	struct inode *new_inode = malloc(sizeof(struct inode));
+	new_inode->type = type;
+	// if the newly created inode is a directory, we need to put special dir_entry . and ..
+	if (type == INODE_DIRECTORY) {
+		new_inode->size = 2 * sizeof(struct dir_entry);
+		int free_block = remove_free_block();
+		new_inode->direct[0] = free_block;
+		struct dir_entry *entries = malloc(SECTORSIZE);
+		entries[0].inum = return_inum;
+		entries[0].name[0] = '.';
+		entries[0].name[1] = '\0';
+		entries[1].inum = parent_inum;
+		entries[1].name[0] = '.';
+		entries[1].name[1] = '.';
+		entries[1].name[2] = '\0';
+		status = WriteSector(free_block, entries);
+		free(entries);
+		if (status == ERROR) {
+			free(new_entry);
+			TracePrintf(0, "Failed to write to block %d\n", free_block);
+			return ERROR;
+		}
+	} else {
+		new_inode->size = 0;
+	}
+	write_inode(return_inum, new_inode);
 	free(new_entry);
 
+	TracePrintf(0, "the returning inode is %d\n", return_inum);
 	return return_inum;
 }
 

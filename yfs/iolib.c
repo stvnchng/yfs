@@ -88,7 +88,7 @@ int Create(char *pathname)
     opened_files[fd].occupied = 1;
     opened_files[fd].position = 0;
 
-    return 0;
+    return fd;
 }
 
 int Read(int fd, void *buf, int size) // TODO might need to read over

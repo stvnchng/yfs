@@ -106,9 +106,9 @@ int process_path(char *path, int curr_inum, int call_type)
 	int comp_ptr = 0;
 	int path_ptr = 0;
 	int num_blocks;
-	int return_inum;
+	int return_inum, parent_inum;
 
-	struct inode *start_inode;
+	struct inode *start_inode, *parent_inode;
 	if (path[0] == '/') {
 		start_inode = get_inode(1);
 		return_inum = 1;
@@ -151,12 +151,9 @@ int process_path(char *path, int curr_inum, int call_type)
 			// otherwise, go down the directory tree
 			int i;
 			int found_next_inode = 0;
-			// if we are creating a file/directory, and we reached the end of path, break from loop
-			if (call_type == CREATE && (path[path_ptr] == '\0' || path_ptr == MAXPATHNAMELEN)) {
-				break;
-			}
 			struct dir_entry *dir_ptr = malloc(SECTORSIZE);
 			TracePrintf(2, "there are %d blocks in the inode.\n", num_blocks);
+			// if there are NUM_DIRECT blocks or less. We don't need to look into the indirect blocks. 
 			if (num_blocks <= NUM_DIRECT) {
 				for (i = 0; i < num_blocks; i++) {
 					int status = ReadSector(start_inode->direct[i], dir_ptr);
@@ -164,9 +161,13 @@ int process_path(char *path, int curr_inum, int call_type)
 						return ERROR;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
+						TracePrintf(1, "the compared component is %s\n", dir_ptr[j].name); // remove this later
 						if (compare_filenames(dir_ptr[j].name, component) == 1) {
+							TracePrintf(1, "we have found a matching dir_entry.\n");
 							// if we found the right file/dir, move on/open file
+							parent_inum = return_inum;
 							return_inum = dir_ptr[j].inum;
+							parent_inode = start_inode;
 							start_inode = get_inode(return_inum);
 							num_blocks = get_num_blocks(start_inode);
 							num_dir = start_inode->size / sizeof(struct dir_entry);
@@ -175,15 +176,16 @@ int process_path(char *path, int curr_inum, int call_type)
 						}
 						// if we already went through every file/directory, return error
 						if (--num_dir <= 0) {
-							TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-							return ERROR;
+							break;
 						}
 					}
 					// if found the next node in hierarchy, go to next while loop
 					if (found_next_inode) 
 						break;
 				}	
-			} else {
+			} 
+			// We need to look into the direct blocks and the indirect blocks. 
+			else {
 				for (i = 0; i < NUM_DIRECT; i++) {
 					int status = ReadSector(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
@@ -191,8 +193,11 @@ int process_path(char *path, int curr_inum, int call_type)
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
 						if (compare_filenames(dir_ptr[j].name, component) == 1) {
+							TracePrintf(1, "we have found a matching dir_entry.\n");
 							// if we found the right file/dir, move on/open file
+							parent_inum = return_inum;
 							return_inum = dir_ptr[j].inum;
+							parent_inode = start_inode;
 							start_inode = get_inode(return_inum);
 							num_blocks = get_num_blocks(start_inode);
 							num_dir = start_inode->size / sizeof(struct dir_entry);
@@ -219,8 +224,11 @@ int process_path(char *path, int curr_inum, int call_type)
 						int j;
 						for (j = 0; j < num_dir_in_block; j++) {
 							if (compare_filenames(dir_ptr[j].name, component) == 1) {
+								TracePrintf(1, "we have found a matching dir_entry.\n");
 								// if we found the right file/dir, move on/open file
+								parent_inum = return_inum;
 								return_inum = dir_ptr[j].inum;
+								parent_inode  = start_inode;
 								start_inode = get_inode(return_inum);
 								num_blocks = get_num_blocks(start_inode);
 								num_dir = start_inode->size / sizeof(struct dir_entry);
@@ -229,8 +237,7 @@ int process_path(char *path, int curr_inum, int call_type)
 							}
 							// if we already went through every file/directory, return error
 							if (--num_dir <= 0) {
-								TracePrintf(0, "Cannot find file that matches the name %s\n", component);
-								return ERROR;
+								break;
 							}
 						}
 						// if found the next node in hierarchy, go to next while loop
@@ -241,9 +248,29 @@ int process_path(char *path, int curr_inum, int call_type)
 				}
 			}
 			if (!found_next_inode) {
-				TracePrintf(0, "Cannot find the right file to open\n");
-				return ERROR;
+				switch (call_type) {
+					case OPEN:
+					case CHDIR:
+					case RMDIR:
+						TracePrintf(0, "The component %s does not exist\n", component);
+						return ERROR;
+					case CREATE:
+						if (path[path_ptr] == '\0' || path_ptr == MAXPATHNAMELEN) {
+							return create_stuff(component, return_inum, INODE_REGULAR);
+						} else {
+							TracePrintf(0, "Cannot find the right file to open\n");
+							return ERROR;
+						}
+					case MKDIR:
+						if (path[path_ptr] == '\0' || path_ptr == MAXPATHNAMELEN) {
+							return create_stuff(component, return_inum, INODE_DIRECTORY);
+						} else {
+							TracePrintf(0, "Cannot find the right file to open\n");
+							return ERROR;
+						}
+				}
 			} 
+
 			free(dir_ptr);
 			// Reset component to be ready for the next component in path
 			comp_ptr = 0;
@@ -252,13 +279,20 @@ int process_path(char *path, int curr_inum, int call_type)
 			}
 		}
 	}
-	
-	if (call_type == CREATE) {
-		return create_stuff(component, return_inum, INODE_REGULAR);
-	} else if (call_type == MKDIR) {
-		return create_stuff(component, return_inum, INODE_DIRECTORY);
-	}
 
+	// Exiting the while loop means that all of the component already exists
+	switch (call_type) {
+		case MKDIR:
+			TracePrintf(0, "MKDIR fail. The directory already exists.\n");
+			return ERROR;
+		case RMDIR:
+			return remove_dir(start_inode, parent_inode, parent_inum);		
+	}
+	if (call_type == MKDIR) {
+		TracePrintf(0, "MKDIR fail. The directory already exists.\n");
+		return ERROR;
+	} 
+	
 	return return_inum;
 }
 
@@ -281,6 +315,7 @@ int remove_free_inode(short type)
 			}	
 			free_inode_list[i] = 0;
 			free_inode->type = type;
+			TracePrintf(2, "The free inode removed is %d\n", i+1);
 			return i + 1;
 		}
 	}
@@ -299,6 +334,7 @@ int remove_free_block()
 		// if we found a free block, remove it
 		if (free_block_list[i] == 1) {
 			free_block_list[i] = 0;
+			TracePrintf(2, "The free block removed is %d\n", i+1);
 			return i + 1;
 		}
 	}
@@ -331,6 +367,7 @@ int create_stuff(char *name, int parent_inum, short type)
 	// Get how many blocks and directories the parent inode already have. 
 	int num_blocks = get_num_blocks(parent_inode);
 	int num_dir = get_num_dir(parent_inode);
+	TracePrintf(1, "The parent inode has %d blocks, %d inodes.\n", num_blocks, num_dir);
 
 	if (num_blocks == NUM_DIRECT && num_dir % num_dir_in_block == 0) {
 		parent_inode->indirect = remove_free_block();
@@ -358,7 +395,7 @@ int create_stuff(char *name, int parent_inum, short type)
 		} else {
 			struct dir_entry last_block[SECTORSIZE/sizeof(struct dir_entry)];
 			// read the last block
-			status = ReadSector(num_blocks - 1, last_block);
+			status = ReadSector(parent_inode->direct[num_blocks - 1], last_block);
 			if (status == ERROR) { 
 				free(new_entry);
 				TracePrintf(0, "Failed to read from sector %d\n", num_blocks - 1);
@@ -368,7 +405,7 @@ int create_stuff(char *name, int parent_inum, short type)
 			int new_dir_index = num_dir % num_dir_in_block;
 			last_block[new_dir_index] = *new_entry;
 			// Write back the block
-			status = WriteSector(num_blocks - 1, last_block);
+			status = WriteSector(parent_inode->direct[num_blocks - 1], last_block);
 			if (status == ERROR) {
 				free(new_entry);
 				TracePrintf(0, "Failed to write to sector %d\n", num_blocks - 1);
@@ -475,9 +512,45 @@ int create_stuff(char *name, int parent_inum, short type)
 	write_inode(return_inum, new_inode);
 	free(new_entry);
 
-	TracePrintf(0, "the returning inode is %d\n", return_inum);
+	TracePrintf(0, "the returning inode from create is %d\n", return_inum);
 	return return_inum;
 }
+
+int remove_dir(struct inode *child_inode, struct inode *parent_inode, int parent_inum) 
+{
+	TracePrintf(1, "the parent's inum is %d\n", parent_inum);
+	// both inodes needs to be directories
+	if (parent_inode->type != INODE_DIRECTORY || child_inode->type != INODE_DIRECTORY) {
+		TracePrintf(0, "Both parent and child inode need to be directories. \n");
+		return ERROR;
+	}
+
+	// if there are more than . and .. in the inode to be removed, then return an ERROR
+	int num_dir = get_num_dir(child_inode);
+	if (num_dir > 2) {
+		TracePrintf(0, "RMDIR. There are more than . and .. in the directory.\n");
+		return ERROR;
+	}
+
+	// remove the child from its parent. 
+
+	// free the inode and the block it is allocated
+	//add_free_inode(child_inum);
+	int free_block = child_inode->direct[0];
+	add_free_block(free_block);
+
+	return ERROR;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

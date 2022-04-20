@@ -10,8 +10,9 @@ main()
 {
 	printf("\n%d\n\n", Create("/foo"));
 	printf("\n%d\n\n", Create("/bar"));
-	printf("\n%d\n\n", Create("/foo"));
+	// printf("\n%d\n\n", Create("/foo"));
 	printf("\n%d\n\n", Create("/foo/zzz"));
 
 	Shutdown();
+	return 0;
 }

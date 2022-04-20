@@ -5,10 +5,11 @@
 
 
 /**
- *  Definition for cache structure for INodes and Blocks 
+ *  Definition for cache structure for inodes and blocks 
  */
 struct cache {
     int size;
+    int maxsize;
     struct hash_table *ht;
     struct cache_item *head;
     struct cache_item *tail;
@@ -16,24 +17,32 @@ struct cache {
 
 struct cache_item {
     bool dirty;
-    int num; // hash table key
-    void *value; // hash table values
+    int num; // hash table key (aka inum or block num)
+    void *value; // in this case, the address of the inum or block
     struct cache_item *prev;
     struct cache_item *next;
 };
 
-
 /**
- *  Definition for free block or inode
+ *  Helper definitions for caching
  */
-struct free_list_item {
-    int id;
-    bool free;
-    struct free_block *next;
-};
+void *GetFromCache(struct cache *cache, int num);
+void PutIntoCache(struct cache *cache, int num, void *value);
+void RemoveFromCache(struct cache *cache, struct cache_item *item);
+void AssignHead(struct cache *cache, struct cache_item *item);
 
 /**
- *  Definitions for request types
+ *  Global Variables
+ */
+struct cache *inode_cache;
+struct cache *block_cache;
+
+int num_blocks, num_inodes; // count of free inodes and blocks
+short *free_block_list;
+short *free_inode_list;
+
+/**
+ *  Definitions for messaging and request types
  */
 #define OPEN            0
 #define CLOSE          1
@@ -65,17 +74,11 @@ struct msg {
     void *ptr2; // use this for [newname], [buf], or [statbuf]
 };
 
-/**
- * Global variables
- */
-int num_blocks, num_inodes;
-short *free_block_list;
-short *free_inode_list;
 
 /**
  * Definitions for helper functions 
  */
 int InitYFS();
 void HandleRequest(struct msg *);
-char *GetMessagePath(int srcpid, void *src, int pathlen);
+char *GetMessagePath(int, void *, int);
 

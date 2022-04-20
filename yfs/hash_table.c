@@ -21,9 +21,9 @@
  * Computes the hash of a given key using the idea in Piazza @533.
  */
 static unsigned int
-hash_value(int key)
+hash_value(int key, int size)
 {
-	return key % BLOCK_CACHESIZE;
+	return key % size;
 }
 
 /*
@@ -79,11 +79,6 @@ struct hash_table {
 };
 
 /*
- * The initial number of collision chains in a hash table:
- */
-// #define	INITIAL_SIZE	2
-
-/*
  * Requires:
  *  "load_factor" must be greater than zero.
  *
@@ -97,7 +92,6 @@ hash_table_create(int size)
 {
 	struct hash_table *ht;
 
-	assert(load_factor > 0.0);
 	ht = malloc(sizeof(struct hash_table));
 	if (ht == NULL)
 		return (NULL);
@@ -120,48 +114,6 @@ hash_table_create(int size)
 
 /*
  * Requires:
- *  Nothing.
- *
- * Effects:
- *  Destroys a hash table, but first if the function pointer "destructor" is
- *  not NULL calls "destructor" on each mapping in the hash table.  The
- *  mapping's key, its value, and the latest value of the pointer "cookie"
- *  are passed to "destructor" as arguments.  The return value is assigned to
- *  "cookie", becoming "cookie"'s latest value.  In other words,
- *	cookie = destructor(key, value, cookie);
- *  The order in which the mappings are passed to "destructor" is not
- *  defined.  Returns "cookie"'s latest value.
- */
-void *
-hash_table_destroy(struct hash_table *ht,
-    void *(*destructor)(int key, void *value, void *cookie),
-    void *cookie)
-{
-	struct hash_table_mapping *elem, *next;
-	unsigned int index;
-
-	/*
-	 * Iterate over the collision chains.
-	 */
-	for (index = 0; index < ht->size; index++) {
-		/*
-		 * Destroy each of the mappings in a collision chain.
-		 */
-		for (elem = ht->head[index]; elem != NULL; elem = next) {
-			next = elem->next;
-			if (destructor != NULL)
-				cookie = (*destructor)(elem->key, elem->value,
-				    cookie);
-			free(elem);
-		}
-	}
-	free(ht->head);
-	free(ht);
-	return (cookie);
-}
-
-/*
- * Requires:
  *  "new_size" must be greater than zero.
  *
  * Effects:
@@ -175,8 +127,6 @@ hash_table_resize(struct hash_table *ht, unsigned int new_size)
 	struct hash_table_mapping **new_head;
 	struct hash_table_mapping *elem, *next;
 	unsigned int index, new_index;
-
-	assert(new_size > 0);
 
 	/*
 	 * Does the hash table already have the desired number of collision
@@ -214,7 +164,7 @@ hash_table_resize(struct hash_table *ht, unsigned int new_size)
 			 * Compute the array index of the new collision chain
 			 * into which the mapping should be inserted.
 			 */
-			new_index = hash_value(elem->key) % new_size;
+			new_index = hash_value(elem->key, ht->size) % new_size;
 			/*
 			 * Insert the mapping into its new collision chain.
 			 */
@@ -272,7 +222,7 @@ hash_table_insert(struct hash_table *ht, int key, void *value)
 	 * Compute the array index of the collision chain in which the mapping
 	 * should be inserted.
 	 */
-	index = hash_value(key) % ht->size;
+	index = hash_value(key, ht->size) % ht->size;
 	/*
 	 * Insert the new mapping into that collision chain.
 	 */
@@ -280,40 +230,6 @@ hash_table_insert(struct hash_table *ht, int key, void *value)
     ht->head[index] = elem;
 	ht->occupancy++;
 	return (0);
-}
-
-/*
- * Requires:
- *  Nothing.
- *
- * Effects:
- *  Calls "function" on each mapping in the hash table, passing the mapping's
- *  key, its value, and the latest value of the pointer "cookie" as the
- *  arguments.  The return value is assigned to "cookie", becoming "cookie"'s
- *  latest value.  In other words,
- *	cookie = function(key, value, cookie);
- *  The order in which the mappings are passed to "function" is not defined.
- *  Returns "cookie"'s latest value.
- */
-void *
-hash_table_iterate(struct hash_table *ht,
-    void *(*function)(int key, void *value, void *cookie),
-    void *cookie)
-{
-	struct hash_table_mapping *elem;
-	unsigned int index;
-
-	/*
-	 * Iterate over the collision chains.
-	 */
-	for (index = 0; index < ht->size; index++) {
-		/*
-		 * Call "function" on each mapping in the collision chain.
-		 */
-		for (elem = ht->head[index]; elem != NULL; elem = elem->next)
-			cookie = (*function)(elem->key, elem->value, cookie);
-	}
-	return (cookie);
 }
 
 /*
@@ -334,7 +250,7 @@ hash_table_lookup(struct hash_table *ht, int key)
 	 * Compute the array index of the collision chain in which "key"
 	 * should be found.
 	 */
-	index = hash_value(key) % ht->size;
+	index = hash_value(key, ht->size) % ht->size;
 	/* 
 	 * Iterate over that collision chain.
 	 */
@@ -358,17 +274,10 @@ hash_table_lookup(struct hash_table *ht, int key)
  *
  * Effects:
  *  Searches the hash table "ht" for the string "key".  If "key" is found,
- *  removes its mapping from "ht".  If the function pointer "destructor" is
- *  not NULL, calls "destructor" with the mapping's key, its value, and the
- *  pointer "cookie" as the arguments.  The return value from "destructor" is
- *  assigned to "cookie".  In other words,
- *	cookie = destructor(key, value, cookie);
- *  Returns "cookie"'s value.
+ *  removes its mapping from "ht".
  */
 void *
-hash_table_remove(struct hash_table *ht, int key,
-    void *(*destructor)(int key, void *value, void *cookie),
-    void *cookie)
+hash_table_remove(struct hash_table *ht, int key)
 {
 	struct hash_table_mapping *elem, *prev;
 	unsigned int index;
@@ -383,7 +292,7 @@ hash_table_remove(struct hash_table *ht, int key,
 	 * Compute the array index of the collision chain in which "key"
 	 * should be found.
 	 */
-	index = hash_value(key) % ht->size;
+	index = hash_value(key, ht->size) % ht->size;
 	/*
 	 * Iterate over that collision chain.
 	 */
@@ -402,16 +311,8 @@ hash_table_remove(struct hash_table *ht, int key,
 			else
 			    prev->next = elem->next;
 			ht->occupancy--;
-			/*
-			 * Then, call "destructor", and free the mapping.
-			 */
-			if (destructor != NULL)
-				cookie = (*destructor)(elem->key, elem->value,
-				    cookie);
-			free(elem);
-			return (cookie);
 		}
 		prev = elem;
 	}
-	return (cookie);
+	return (NULL);
 }

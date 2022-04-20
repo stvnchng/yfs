@@ -6,11 +6,6 @@
 #include "iohelpers.h"
 
 /**
- *  YFS Global Variables
- */
-
-
-/**
  * Initializes YFS and processes messages.
  * TODO: Run this command: ~comp421/pub/bin/yalnix yfs <args>
  */
@@ -47,13 +42,16 @@ main(int argc, char **argv)
 int InitYFS()
 {
     // initialize block and inode cache
-    struct cache *inode_cache = malloc(sizeof(struct cache));
-    struct cache *block_cache = malloc(sizeof(struct cache));
-
+    inode_cache = malloc(sizeof(struct cache));
+    block_cache = malloc(sizeof(struct cache));
     struct hash_table *inode_ht = hash_table_create(INODE_CACHESIZE);
     struct hash_table *block_ht = hash_table_create(BLOCK_CACHESIZE);
     inode_cache->ht = inode_ht;
     block_cache->ht = block_ht;
+	inode_cache->size = 0;
+	block_cache->size = 0;
+	inode_cache->maxsize = INODE_CACHESIZE;
+	block_cache->maxsize = BLOCK_CACHESIZE;
 
 	// Get the number of blocks and inodes
 	void *temp_ptr = malloc(SECTORSIZE);
@@ -121,3 +119,68 @@ int InitYFS()
     return 0;
 }
 
+/**
+ * 	Helpers for caching inodes and blocks
+ */
+void *GetFromCache(struct cache *cache, int num)
+{
+	struct cache_item *res = hash_table_lookup(cache->ht, num);
+	if (res == NULL) return NULL; //means inode/block not in cache
+	// if head is not res, move it to head (LRU)
+	if (cache->head != res) {
+		RemoveFromCache(cache, res);
+		AssignHead(cache, res);
+	}
+
+	return res->value; //value holds the inode/block
+}
+
+void PutIntoCache(struct cache *cache, int num, void *value)
+{
+	// First check if key already exists
+	struct cache_item *item = GetFromCache(cache, num);
+	if (item != NULL) {
+		// If so, we reassign its value and move it to the head
+		item->value = value;
+		RemoveFromCache(cache, item);
+		AssignHead(cache, item);
+		return;
+	}
+	// Otherwise, initialize an item and insert it at the head
+	item = malloc(sizeof(struct cache_item));
+	item->num = num;
+	item->value = value;
+	hash_table_insert(cache->ht, num, item);
+
+	if (cache->size >= cache->maxsize) {
+		// LRU: If the cache is maxcap, start removing from the tail
+		hash_table_remove(cache->ht, cache->tail->num); //remove from ht and cache
+		RemoveFromCache(cache, cache->tail);
+	} else {
+		cache->size = cache->size + 1; // increment size
+	}
+
+	AssignHead(cache, item);
+}
+
+void RemoveFromCache(struct cache *cache, struct cache_item *item)
+{
+	if (item->prev == NULL) { // we are at the head
+		cache->head = item->next; // reassign head
+	} else item->prev->next = item->next; // else link to original succ
+	if (item->next == NULL) { // we are at the tail
+		cache->tail = item->prev; // reassign tail
+	} else item->next->prev = item->prev; // else link to original pred
+}
+
+void AssignHead(struct cache *cache, struct cache_item *item)
+{
+	if (cache->head == item) return;
+	item->prev = NULL;
+	item->next = cache->head;
+	// Check for existing head item
+	if (cache->head != NULL) cache->head->prev = item;
+	// Assign tail if nonexistent
+	if (cache->tail == NULL) cache->tail = item;
+	cache->head = item;
+}

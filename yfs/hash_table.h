@@ -32,24 +32,6 @@ struct hash_table *hash_table_create(int size);
 
 /*
  * Requires:
- *  Nothing.
- *
- * Effects:
- *  Destroys a hash table, but first if the function pointer "destructor" is
- *  not NULL calls "destructor" on each mapping in the hash table.  The
- *  mapping's key, its value, and the latest value of the pointer "cookie"
- *  are passed to "destructor" as arguments.  The return value is assigned to
- *  "cookie", becoming "cookie"'s latest value.  In other words,
- *	cookie = destructor(key, value, cookie);
- *  The order in which the mappings are passed to "destructor" is not
- *  defined.  Returns "cookie"'s latest value.
- */
-void *hash_table_destroy(struct hash_table *ht,
-    void *(*destructor)(int key, void *value, void *cookie),
-    void *cookie);
-
-/*
- * Requires:
  *  "key" is not already in "ht".
  *  "value" is not NULL.
  *
@@ -59,23 +41,6 @@ void *hash_table_destroy(struct hash_table *ht,
  *  created and -1 if it was not.
  */
 int hash_table_insert(struct hash_table *ht, int key, void *value);
-
-/*
- * Requires:
- *  Nothing.
- *
- * Effects:
- *  Calls "function" on each mapping in the hash table, passing the mapping's
- *  key, its value, and the latest value of the pointer "cookie" as the
- *  arguments.  The return value is assigned to "cookie", becoming "cookie"'s
- *  latest value.  In other words,
- *	cookie = function(key, value, cookie);
- *  The order in which the mappings are passed to "function" is not defined.
- *  Returns "cookie"'s latest value.
- */
-void *hash_table_iterate(struct hash_table *ht,
-    void *(*function)(int key, void *value, void *cookie),
-    void *cookie);
 
 /*
  * Requires:
@@ -93,13 +58,7 @@ void *hash_table_lookup(struct hash_table *ht, int key);
  *
  * Effects:
  *  Searches the hash table "ht" for the string "key".  If "key" is found,
- *  removes its mapping from "ht".  If the function pointer "destructor" is
- *  not NULL, calls "destructor" with the mapping's key, its value, and the
- *  pointer "cookie" as the arguments.  The return value from "destructor" is
- *  assigned to "cookie".  In other words,
- *	cookie = destructor(key, value, cookie);
- *  Returns "cookie"'s value.
+ *  removes its mapping from "ht".
+ *  Returns NULL.
  */
-void *hash_table_remove(struct hash_table *ht, int key,
-    void *(*destructor)(int key, void *value, void *cookie),
-    void *cookie);
+void *hash_table_remove(struct hash_table *ht, int key);

@@ -21,11 +21,6 @@ int YFSOpen(struct msg *msg, int pid)
     if (inum == ERROR) return ERROR;
     msg->data1 = inum;
 
-    // // search through hierarchy for a valid inum
-    // int inum = process_path(msg->ptr1, msg->data1, OPEN);
-    // if (inum == ERROR) return ERROR;
-    // msg->data1 = inum;
-  
     if (get_inode(inum) == NULL) {
         return ERROR;
     }
@@ -44,8 +39,6 @@ int YFSCreate(struct msg *msg, int pid)
     int inum = process_path(pathname, msg->data1, CREATE);
     if (inum == ERROR) return ERROR;
     msg->data1 = inum;
-
-    
 
     return 0;
 }
@@ -86,24 +79,35 @@ int YFSUnlink(struct msg *msg, int pid)
 }
 
 // int SymLink(char *, char *);
-// int ReadLink(char *pathname, char *buf, int len)
-// {
-//     (void)pathname;
-//     (void)buf;
-//     return len;
-// }
+// int ReadLink(char *pathname, char *buf, int len);
 
 int YFSMkDir(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    if (pathname == NULL) {
+        printf("Bad arguments passed to YFSCreate\n");
+        return ERROR;
+    }
+
+    int inum = process_path(pathname, msg->data1, MKDIR);
+    if (inum == ERROR) return ERROR;
+    msg->data1 = inum;
+
     return 0;
 }
 
 int YFSRmDir(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    if (pathname == NULL) {
+        printf("Bad arguments passed to YFSCreate\n");
+        return ERROR;
+    }
+
+    int inum = process_path(pathname, msg->data1, RMDIR);
+    if (inum == ERROR) return ERROR;
+    msg->data1 = inum;
+
     return 0;
 }
 
@@ -124,21 +128,33 @@ int YFSStat(struct msg *msg, int pid)
 int YFSSync(void)
 {
     TracePrintf(0, "Writing back all dirty cached inodes and blocks...\n");
-    // define head of block cache
-    // while head != null, check if cache_item = dirty
-    // WriteSector back
+    struct cache_item *inode_head = inode_cache->head;
+    while (inode_head != NULL) {
+        if (inode_head->dirty) {
+            // TODO Section 4.1 last paragraph
 
-    // define head of inode cache
-    // while head != null, check if cache_item = dirty
-    // WriteSector back
-
+        }
+        inode_head = inode_head->next;
+    }
+    TracePrintf(0, "Now writing back all dirty cached blocks...\n");
+    struct cache_item *block_head = block_cache->head;
+    while (block_head != NULL) {
+        // If inode is dirty, Sync writes it back
+        if (block_head->dirty) {
+            if (WriteSector(block_head->num, block_head->value) == ERROR) {
+                printf("WriteSector error in Sync, block %d\n", block_head->num);
+                return ERROR;
+            }
+        }
+        block_head = block_head->next;
+    }
     return 0;
 }
 
-int YFSShutdown(void)
+int YFSShutdown(struct msg *msg, int pid)
 {
-    TracePrintf(0, "Shutting down YFS server...\n");
     YFSSync(); // write back all dirty cached inodes and disk blocks
+    Reply(msg, pid); // reply to the calling process and exit
     Exit(0);
 }
 
@@ -147,7 +163,7 @@ void HandleRequest(struct msg *msg)
     int pid = Receive(msg);
     if (pid == ERROR) {
         printf("Receive message failed! YFS is shutting down...\n");
-        YFSShutdown();
+        YFSShutdown(msg, pid);
     }
 
     switch (msg->type)
@@ -225,7 +241,7 @@ void HandleRequest(struct msg *msg)
     case SHUTDOWN:
         TracePrintf(0, "[SHUTDOWN]\n");
         printf("[SHUTDOWN]\n");
-        YFSShutdown();
+        YFSShutdown(msg, pid);
         break;
     default:
         printf("Message with type %d was not recognized!\n", msg->type);

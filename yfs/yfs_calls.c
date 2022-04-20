@@ -41,7 +41,7 @@ int YFSCreate(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, OPEN);
+    int inum = process_path(pathname, msg->data1, CREATE);
     if (inum == ERROR) return ERROR;
     msg->data1 = inum;
 

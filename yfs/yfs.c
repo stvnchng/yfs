@@ -90,11 +90,15 @@ int InitYFS()
 		// skip file system header
 		int blocks_count = 0;
 		if (i == 1) {
-			inode_ptr++;
 			blocks_count++;	
 		}
 		// Loop through all the inode in a block (one sector)
 		while (blocks_count < (SECTORSIZE / INODESIZE)) {
+			// check root node
+			if (i == 1 && blocks_count == 1) {
+				TracePrintf(6, "The root inode is of type %d\n", inode_ptr[blocks_count].type);
+				TracePrintf(6, "The root inode is of size %d\n", inode_ptr[blocks_count].size);
+			}
 			// if inode is free, add it to the free inode list
 			if (inode_ptr[blocks_count].type == INODE_FREE) {
 				free_inode_list[(i - 1) * (SECTORSIZE / INODESIZE) + blocks_count] = 1;
@@ -104,7 +108,7 @@ int InitYFS()
 					free_block_list[inode_ptr[blocks_count].direct[j]] = 1;
 				}	
 				free_block_list[inode_ptr[blocks_count].indirect] = 1;
-			}
+			} 
 			blocks_count++;
 		}
 	}

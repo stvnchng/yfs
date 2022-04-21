@@ -70,7 +70,7 @@ int InitYFS()
 	// Initialize free_block_list and free_inode_list
 	int i;
 	for (i = 0; i < num_blocks; i++) {
-		free_block_list[i] = 0;
+		free_block_list[i] = 1;
 	}
 	for (i = 0; i < num_inodes; i++) {
 		free_inode_list[i] = 0;
@@ -102,20 +102,27 @@ int InitYFS()
 			if (inode_ptr[blocks_count].type == INODE_FREE) {
 				free_inode_list[(i - 1) * (SECTORSIZE / INODESIZE) + blocks_count] = 1;
 				// add all the blocks it uses to free block list
+				// int j;
+				// for (j = 0; j < NUM_DIRECT; j++) {
+				// 	free_block_list[inode_ptr[blocks_count].direct[j]] = 1;
+				// }	
+				// free_block_list[inode_ptr[blocks_count].indirect] = 1;
+			} else {
 				int j;
 				for (j = 0; j < NUM_DIRECT; j++) {
-					free_block_list[inode_ptr[blocks_count].direct[j]] = 1;
-				}	
-				free_block_list[inode_ptr[blocks_count].indirect] = 1;
-			} 
+					free_block_list[inode_ptr[blocks_count].direct[j]] = 0;
+				}
+			}	
 			blocks_count++;
 		}
 	}
 	free(temp_ptr);
+	TracePrintf(2, "There are %d blocks allocated for inodes.\n", num_iblocks);
 	// Make sure that the blocks that contain the inodes are not free
 	for (i = 0; i <= num_iblocks; i++) {
 		free_block_list[i] = 0;
 	}
+
 
     return 0;
 }
@@ -143,6 +150,7 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	if (item != NULL) {
 		TracePrintf(1, "There is already a key in the cache\n");
 		// If so, we reassign its value and move it to the head
+		TracePrintf(1, "%p\n", item);
 		item->value = value;
 		RemoveFromCache(cache, item);
 		AssignHead(cache, item);

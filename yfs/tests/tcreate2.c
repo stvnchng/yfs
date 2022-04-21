@@ -8,10 +8,14 @@
 int
 main()
 {
-	printf("\n%d\n\n", Create("/foo"));
+	printf("\n%d\n\n", MkDir("/foo"));
+	printf("\n%d\n\n", MkDir("/foo/haha"));
+	// printf("\n%d\n\n", Create("/foo"));
 	printf("\n%d\n\n", Create("/bar"));
 	// printf("\n%d\n\n", Create("/foo"));
 	printf("\n%d\n\n", Create("/foo/zzz"));
+	printf("\n%d\n\n", RmDir("/foo/haha"));
+	printf("\n%d\n\n", Create("/foo/lol"));
 
 	Shutdown();
 	return 0;

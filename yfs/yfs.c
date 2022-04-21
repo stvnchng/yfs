@@ -150,7 +150,6 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	if (item != NULL) {
 		TracePrintf(1, "There is already a key in the cache\n");
 		// If so, we reassign its value and move it to the head
-		TracePrintf(1, "%p\n", item);
 		item->value = value;
 		RemoveFromCache(cache, item);
 		AssignHead(cache, item);
@@ -160,11 +159,14 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	item = malloc(sizeof(struct cache_item));
 	item->num = num;
 	void *new_val;
-	if (cache == block_cache)
+	if (cache == block_cache) {
 		new_val = malloc(BLOCKSIZE);
-	else 
+		memcpy(new_val, value, BLOCKSIZE);
+	}
+	else { 
 		new_val = malloc(INODESIZE);
-	memcpy(new_val, value, INODESIZE);
+		memcpy(new_val, value, INODESIZE);
+	}
 	item->value = new_val;
 	hash_table_insert(cache->ht, num, item);
 

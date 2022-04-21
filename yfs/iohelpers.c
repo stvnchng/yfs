@@ -210,7 +210,7 @@ int process_path(char *path, int curr_inum, int call_type)
 			// We need to look into the direct blocks and the indirect blocks. 
 			else {
 				for (i = 0; i < NUM_DIRECT; i++) {
-					int status = ReadSector(start_inode->direct[i], dir_ptr);
+					int status = ReadSectorWrapper(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
 						return ERROR;
 					int j;
@@ -238,11 +238,11 @@ int process_path(char *path, int curr_inum, int call_type)
 				// if we didn't find the next inode in the direct blocks, go to the indirect blocks. 	
 				if (!found_next_inode) {
 					int *blocks = malloc(SECTORSIZE);
-					int status = ReadSector(start_inode->indirect, blocks);
+					int status = ReadSectorWrapper(start_inode->indirect, blocks);
 					if (status == ERROR)
 						return ERROR;
 					for (i = 0; i < num_blocks - NUM_DIRECT; i++) {
-						status = ReadSector(blocks[i], dir_ptr);
+						status = ReadSectorWrapper(blocks[i], dir_ptr);
 						if (status == ERROR)
 							return ERROR;
 						int j;
@@ -443,7 +443,7 @@ int create_stuff(char *name, int parent_inum, short type)
 	} else {
 		// Allocate a block in the indirect block
 		int *indirect_blocks = malloc(SECTORSIZE);
-		status = ReadSector(parent_inode->indirect, indirect_blocks);
+		status = ReadSectorWrapper(parent_inode->indirect, indirect_blocks);
 		if (status == ERROR) {
 			free(new_entry);
 			free(indirect_blocks);
@@ -460,7 +460,7 @@ int create_stuff(char *name, int parent_inum, short type)
 				return ERROR;
 			}
 			// Write the new dir_entry to the newly allocated free block
-			status = WriteSector(free_block, new_entry);
+			status = WriteSectorWrapper(free_block, new_entry);
 			if (status == ERROR) {
 				add_free_block(free_block);
 				free(new_entry);
@@ -470,7 +470,7 @@ int create_stuff(char *name, int parent_inum, short type)
 			}
 			// Add a new block to the end of the indirect block. 
 			indirect_blocks[num_blocks - NUM_DIRECT] = free_block;
-			status = WriteSector(parent_inode->indirect, indirect_blocks);
+			status = WriteSectorWrapper(parent_inode->indirect, indirect_blocks);
 			if (status == ERROR) {
 				add_free_block(free_block);
 				free(new_entry);
@@ -481,7 +481,7 @@ int create_stuff(char *name, int parent_inum, short type)
 		} else {
 			struct dir_entry last_block[SECTORSIZE/sizeof(struct dir_entry)];
 			// Read the last block
-			status = ReadSector(indirect_blocks[num_blocks - 1 - NUM_DIRECT], last_block);
+			status = ReadSectorWrapper(indirect_blocks[num_blocks - 1 - NUM_DIRECT], last_block);
 			if (status == ERROR) {
 				free(new_entry);
 				free(indirect_blocks);
@@ -579,16 +579,16 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 		TracePrintf(1, "The parent inode has %d removable dir_entry\n", parent_num_dir - 2);
 		// Get the last dir_entry
 		if (parent_num_blocks <= NUM_DIRECT) {
-			status = ReadSector(parent_inode->direct[parent_num_blocks-1], entries);
+			status = ReadSectorWrapper(parent_inode->direct[parent_num_blocks-1], entries);
 		} else {
 			int *indirect_blocks = malloc(SECTORSIZE);
-			status = ReadSector(parent_inode->indirect, indirect_blocks);
+			status = ReadSectorWrapper(parent_inode->indirect, indirect_blocks);
 			if (status == ERROR) {
 				TracePrintf(0, "Failed to read from block %d\n", parent_inode->indirect);
 				return ERROR;
 			}
 			int indirect_index = parent_num_blocks - NUM_DIRECT - 1;
-			status = ReadSector(indirect_blocks[indirect_index], entries);
+			status = ReadSectorWrapper(indirect_blocks[indirect_index], entries);
 			free(indirect_blocks);
 		}
 		if (status == ERROR) {
@@ -613,7 +613,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 			free(last_dir_name);
 			return ERROR;
 		}		
-		status = ReadSector(child_block, entries);
+		status = ReadSectorWrapper(child_block, entries);
 		if (status == ERROR) {
 			free(last_dir_name);
 			TracePrintf(0, "Cannot read from block %d\n", child_block);
@@ -645,7 +645,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 		}
 		int num_indirect = child_num_blocks - NUM_DIRECT;
 		int *indirect_blocks = malloc(SECTORSIZE);
-		status = ReadSector(child_inode->indirect, indirect_blocks);
+		status = ReadSectorWrapper(child_inode->indirect, indirect_blocks);
 		if (status == ERROR) {
 			free(indirect_blocks);
 			return ERROR;		
@@ -671,7 +671,7 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 	struct dir_entry return_block[SECTORSIZE/sizeof(struct dir_entry)];
 	if (parent_num_blocks <= NUM_DIRECT) { // if the parent inode only needs direct blocks
 		for (i = 0; i < (unsigned int) parent_num_blocks; i++) {
-			status = ReadSector(parent_inode->direct[i], return_block);
+			status = ReadSectorWrapper(parent_inode->direct[i], return_block);
 			if (status == ERROR) {
 				TracePrintf(0, "Failed to read from block %d\n", parent_inode->direct[i]);
 				return ERROR;
@@ -689,7 +689,7 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 		}
 	} else { // if searching for indirect locks might also be needed
 		for (i = 0; i < NUM_DIRECT; i++) {
-			status = ReadSector(parent_inode->direct[i], return_block);
+			status = ReadSectorWrapper(parent_inode->direct[i], return_block);
 			if (status == ERROR) {
 				TracePrintf(0, "Failed to read from block %d\n", parent_inode->direct[i]);
 				return ERROR;
@@ -704,14 +704,14 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 		}
 		// Read from the indirect block
 		int *indirect_block = malloc(SECTORSIZE);
-		status = ReadSector(parent_inode->indirect, indirect_block);
+		status = ReadSectorWrapper(parent_inode->indirect, indirect_block);
 		if (status == ERROR) {
 			TracePrintf(0, "Failed to read from block %d\n", parent_inode->indirect);
 			return ERROR;
 		}
 		for (i = 0; i < SECTORSIZE/sizeof(int); i++) {
 			int block_num = indirect_block[i];
-			status = ReadSector(block_num, return_block);
+			status = ReadSectorWrapper(block_num, return_block);
 			if (status == ERROR) {
 				TracePrintf(0, "Failed to read from block %d\n", block_num);
 				return ERROR;

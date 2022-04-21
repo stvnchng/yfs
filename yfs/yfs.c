@@ -112,9 +112,21 @@ int InitYFS()
 				// }	
 				// free_block_list[inode_ptr[blocks_count].indirect] = 1;
 			} else {
+				int num_blocks = get_num_blocks(&inode_ptr[blocks_count]);
 				int j;
-				for (j = 0; j < NUM_DIRECT; j++) {
-					free_block_list[inode_ptr[blocks_count].direct[j]] = 0;
+				if (num_blocks <= NUM_DIRECT) {
+					for (j = 0; j < num_blocks; j++) {
+						free_block_list[inode_ptr[blocks_count].direct[j]] = 0;
+					}
+				} else {
+					int *indirect_blocks = malloc(BLOCKSIZE);
+					if (ReadSector(inode_ptr[blocks_count].indirect, indirect_blocks) == ERROR) {
+						return ERROR;
+					}
+					free_block_list[inode_ptr[blocks_count].indirect] = 0;
+					for (j = 0; j < num_blocks - NUM_DIRECT; j++) {
+						free_block_list[indirect_blocks[j]] = 0;
+					}
 				}
 			}	
 			blocks_count++;

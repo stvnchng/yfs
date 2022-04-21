@@ -16,6 +16,7 @@ main()
 	printf("\n%d\n\n", Create("/foo/zzz"));
 	printf("\n%d\n\n", RmDir("/foo/haha"));
 	printf("\n%d\n\n", Create("/foo/lol"));
+	// printf("\n%d\n\n", Open("/bar"));
 
 	Shutdown();
 	return 0;

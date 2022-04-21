@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <comp421/hardware.h>
 #include <comp421/yalnix.h>
 #include "yfs.h"
@@ -150,7 +151,13 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	// Otherwise, initialize an item and insert it at the head
 	item = malloc(sizeof(struct cache_item));
 	item->num = num;
-	item->value = value;
+	void *new_val;
+	if (cache == block_cache)
+		new_val = malloc(BLOCKSIZE);
+	else 
+		new_val = malloc(INODESIZE);
+	memcpy(new_val, value, INODESIZE);
+	item->value = new_val;
 	hash_table_insert(cache->ht, num, item);
 
 	if (cache->size >= cache->maxsize) {
@@ -172,6 +179,8 @@ void RemoveFromCache(struct cache *cache, struct cache_item *item)
 	if (item->next == NULL) { // we are at the tail
 		cache->tail = item->prev; // reassign tail
 	} else item->next->prev = item->prev; // else link to original pred
+	free(item->value);
+	free(item);
 }
 
 void AssignHead(struct cache *cache, struct cache_item *item)

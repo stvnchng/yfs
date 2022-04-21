@@ -70,6 +70,22 @@ struct inode *get_inode(short inum)
 	return res;
 }
 
+/* return address of block given its blocknum */
+void *get_block(int blocknum)
+{
+	// check if block is in cache first
+	void *addr = GetFromCache(block_cache, blocknum);
+	if (addr != NULL) return addr;
+	// block not in cache, so cache it
+	addr = malloc(BLOCKSIZE);
+	if (ReadSector(blocknum, addr) == ERROR) {
+		printf("ReadSector failed in get_block\n");
+		return NULL;
+	}
+	PutIntoCache(block_cache, blocknum, addr);
+	return addr;
+}
+
 int write_inode(short inum, struct inode *inode) 
 {
 	int status;
@@ -702,13 +718,5 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 	TracePrintf(0, "Unable to find a block that contains inode %d\n", inum);
 	return ERROR;
 }
-
-
-
-
-
-
-
-
 
 

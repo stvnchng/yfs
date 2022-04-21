@@ -139,9 +139,16 @@ int YFSSync(void)
     struct cache_item *inode_head = inode_cache->head;
     while (inode_head != NULL) {
         if (inode_head->dirty) {
-            // TODO Section 4.1 last paragraph
-
-        }
+            int inum = inode_head->num;
+            void *block_addr = get_block((inum / (BLOCKSIZE / INODESIZE)) + 1);
+            if (block_addr == NULL) {
+                printf("Error getting block for inode %d in Sync\n", inum);
+                return ERROR;
+            }
+            // Section 4.1 - write back to block cache for the block holding inode 
+            memcpy(block_addr, inode_head->value, sizeof(struct inode));
+            TracePrintf(0, "Wrote back inum %d\n", inum);
+        }   
         inode_head = inode_head->next;
     }
     TracePrintf(0, "Now writing back all dirty cached blocks...\n");

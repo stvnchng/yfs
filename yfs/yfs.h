@@ -5,7 +5,7 @@
 
 
 /**
- *  Definition for cache structure for inodes and blocks 
+ *  Definition for LRU cache structure for inodes and blocks 
  */
 struct cache {
     int size;

@@ -52,7 +52,7 @@ struct inode *get_inode(short inum)
 	struct inode *res;
 	if ((inum + 1) % inode_per_block == 0) {
 		block_num = (inum + 1) / inode_per_block;
-		if (ReadSector(block_num, inode_block) == ERROR) { 
+		if (ReadSectorWrapper(block_num, inode_block) == ERROR) { 
 			free(inode_block);
 			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
@@ -60,14 +60,14 @@ struct inode *get_inode(short inum)
 		res = &inode_block[inode_per_block - 1];
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
-		if (ReadSector(block_num, inode_block) == ERROR) {
+		if (ReadSectorWrapper(block_num, inode_block) == ERROR) {
 		   	free(inode_block);	
 			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return NULL;
 		}
 		res = &inode_block[(inum + 1) % inode_per_block - 1];
 	}
-	// PutIntoCache(inode_cache, inum, res);
+	PutIntoCache(inode_cache, inum, res);
 	return res;
 }
 
@@ -96,17 +96,15 @@ int write_inode(short inum, struct inode *inode)
 	// Change the block's data to what we want
 	if ((inum + 1) % inode_per_block == 0) {
 		block_num = (inum + 1) / inode_per_block;
-		status = ReadSector(block_num, inode_block);
+		status = ReadSectorWrapper(block_num, inode_block);
 		if (status == ERROR) { 
-			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return ERROR;
 		}
 		inode_block[inode_per_block - 1] = *inode;
 	} else {
 		block_num = (inum + 1) / inode_per_block + 1;
-		status = ReadSector(block_num, inode_block);
+		status = ReadSectorWrapper(block_num, inode_block);
 		if (status == ERROR) { 
-			TracePrintf(0, "Cannot read the block to get inode.\n");
 			return ERROR;
 		}
 		inode_block[(inum + 1) % inode_per_block - 1] = *inode;
@@ -114,14 +112,12 @@ int write_inode(short inum, struct inode *inode)
 
 	// Write to the block with our new inode in it. 
 	TracePrintf(1, "Write to block %d\n", block_num);
-	status = WriteSector(block_num, inode_block);
+	status = WriteSectorWrapper(block_num, inode_block);
 	if (status == ERROR) {
-		TracePrintf(0, "Cannot write to block %d\n", block_num);
 		return ERROR;
 	}
+	PutIntoCache(inode_cache, inum, inode);
 	
-	// Put the newly changed inode into cache
-	// PutIntoCache(inode_cache, inum, &inode_block[(inum + 1) % inode_per_block - 1]);
 	free(inode_block);
 
 	return 0;
@@ -147,7 +143,7 @@ int process_path(char *path, int curr_inum, int call_type)
 	if (start_inode == NULL) {
 		return ERROR;
 	}
-	TracePrintf(1, "start_inode's addr is: %p\n", start_inode);
+	TracePrintf(3, "start_inode's addr is: %p\n", start_inode);
 	num_blocks = get_num_blocks(start_inode);
 	if (num_blocks == 0) {
 		TracePrintf(0, "the inode has 0 blocks.\n");	
@@ -183,7 +179,7 @@ int process_path(char *path, int curr_inum, int call_type)
 			// if there are NUM_DIRECT blocks or less. We don't need to look into the indirect blocks. 
 			if (num_blocks <= NUM_DIRECT) {
 				for (i = 0; i < num_blocks; i++) {
-					int status = ReadSector(start_inode->direct[i], dir_ptr);
+					int status = ReadSectorWrapper(start_inode->direct[i], dir_ptr);
 					if (status == ERROR)
 						return ERROR;
 					int j;
@@ -375,6 +371,7 @@ int create_stuff(char *name, int parent_inum, short type)
 	} else if (type == INODE_DIRECTORY) {
 		TracePrintf(0, "Creating a directory named %s\n", name);
 	}
+
 	// Get the parent inode
 	struct inode *parent_inode = get_inode(parent_inum);
 	if (parent_inode->type != INODE_DIRECTORY) {
@@ -415,7 +412,7 @@ int create_stuff(char *name, int parent_inum, short type)
 				free(new_entry);
 				return ERROR;
 			}
-			status = WriteSector(free_block, new_entry);
+			status = WriteSectorWrapper(free_block, new_entry);
 			if (status == ERROR) {
 				add_free_block(free_block);
 				free(new_entry);
@@ -426,7 +423,7 @@ int create_stuff(char *name, int parent_inum, short type)
 		} else {
 			struct dir_entry last_block[SECTORSIZE/sizeof(struct dir_entry)];
 			// read the last block
-			status = ReadSector(parent_inode->direct[num_blocks - 1], last_block);
+			status = ReadSectorWrapper(parent_inode->direct[num_blocks - 1], last_block);
 			if (status == ERROR) { 
 				free(new_entry);
 				TracePrintf(0, "Failed to read from sector %d\n", num_blocks - 1);
@@ -437,10 +434,9 @@ int create_stuff(char *name, int parent_inum, short type)
 			TracePrintf(2, "the new entry will be put at index %d\n", new_dir_index);
 			last_block[new_dir_index] = *new_entry;
 			// Write back the block
-			status = WriteSector(parent_inode->direct[num_blocks - 1], last_block);
+			status = WriteSectorWrapper(parent_inode->direct[num_blocks - 1], last_block);
 			if (status == ERROR) {
 				free(new_entry);
-				TracePrintf(0, "Failed to write to sector %d\n", num_blocks - 1);
 				return ERROR;
 			}
 		}
@@ -495,7 +491,7 @@ int create_stuff(char *name, int parent_inum, short type)
 			// put the new dir_entry at the end of the last block
 			last_block[num_dir % num_dir_in_block] = *new_entry;
 			// Write back the block
-			status = WriteSector(indirect_blocks[num_blocks - 1 - NUM_DIRECT], last_block);
+			status = WriteSectorWrapper(indirect_blocks[num_blocks - 1 - NUM_DIRECT], last_block);
 			if (status == ERROR) {
 				free(new_entry);
 				free(indirect_blocks);
@@ -532,7 +528,7 @@ int create_stuff(char *name, int parent_inum, short type)
 		entries[1].name[0] = '.';
 		entries[1].name[1] = '.';
 		entries[1].name[2] = '\0';
-		status = WriteSector(free_block, entries);
+		status = WriteSectorWrapper(free_block, entries);
 		free(entries);
 		if (status == ERROR) {
 			free(new_entry);
@@ -631,7 +627,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 				free(last_dir_name);
 			}
 		}
-		status = WriteSector(child_block, entries);
+		status = WriteSectorWrapper(child_block, entries);
 	}	
 	// decrease the parent inode's size
 	parent_inode->size -= sizeof(struct dir_entry);

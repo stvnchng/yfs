@@ -53,6 +53,10 @@ int InitYFS()
 	block_cache->size = 0;
 	inode_cache->maxsize = INODE_CACHESIZE;
 	block_cache->maxsize = BLOCK_CACHESIZE;
+	inode_cache->head = NULL;
+	block_cache->head = NULL;
+	inode_cache->tail = NULL;
+	block_cache->tail = NULL;
 
 	// Get the number of blocks and inodes
 	void *temp_ptr = malloc(SECTORSIZE);
@@ -136,34 +140,52 @@ void *GetFromCache(struct cache *cache, int num)
 	if (res == NULL) return NULL; //means inode/block not in cache
 	// if head is not res, move it to head (LRU)
 	if (cache->head != res) {
-		RemoveFromCache(cache, res);
+		// RemoveFromCache(cache, res);
 		AssignHead(cache, res);
 	}
 
 	return res->value; //value holds the inode/block
 }
 
+struct cache_item *GetItemFromCache(struct cache *cache, int num) 
+{
+	struct cache_item *res = hash_table_lookup(cache->ht, num);
+	if (res == NULL) return NULL; //means inode/block not in cache
+	// if head is not res, move it to head (LRU)
+	if (cache->head != res) {
+		// RemoveFromCache(cache, res);
+		AssignHead(cache, res);
+	}
+
+	return res; //value holds the inode/block
+}
+
 void PutIntoCache(struct cache *cache, int num, void *value)
 {
+	PrintCache(cache);
 	// First check if key already exists
-	struct cache_item *item = GetFromCache(cache, num);
+	struct cache_item *item = GetItemFromCache(cache, num);
 	if (item != NULL) {
-		TracePrintf(1, "There is already a key in the cache\n");
+		TracePrintf(2, "There is already a key %d in the cache\n", num);
 		// If so, we reassign its value and move it to the head
-		item->value = value;
+	//	item->value = value;
 		RemoveFromCache(cache, item);
-		AssignHead(cache, item);
-		return;
+		// AssignHead(cache, item);
+		// return;
 	}
 	// Otherwise, initialize an item and insert it at the head
 	item = malloc(sizeof(struct cache_item));
 	item->num = num;
+	item->prev = NULL;
+	item->next = NULL;
 	void *new_val;
 	if (cache == block_cache) {
+		TracePrintf(2, "Putting block %d into cache\n", num);
 		new_val = malloc(BLOCKSIZE);
 		memcpy(new_val, value, BLOCKSIZE);
 	}
 	else { 
+		TracePrintf(2, "Putting inode %d into cache\n", num);
 		new_val = malloc(INODESIZE);
 		memcpy(new_val, value, INODESIZE);
 	}
@@ -179,29 +201,97 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 	}
 
 	AssignHead(cache, item);
+	TracePrintf(2, "Finished putting the new item into cache. \n");
+	PrintCache(cache);
 }
 
 void RemoveFromCache(struct cache *cache, struct cache_item *item)
 {
+	if (cache == block_cache) {
+		TracePrintf(2, "Starts removing block %d from block cache\n", item->num);
+	} else {
+		TracePrintf(2, "Starts removing inode %d from inode cache\n", item->num);
+	}
+
 	if (item->prev == NULL) { // we are at the head
 		cache->head = item->next; // reassign head
 	} else item->prev->next = item->next; // else link to original succ
 	if (item->next == NULL) { // we are at the tail
 		cache->tail = item->prev; // reassign tail
 	} else item->next->prev = item->prev; // else link to original pred
+	TracePrintf(3, "Starts freeing the old item from memory\n");
 	free(item->value);
 	free(item);
 }
 
 void AssignHead(struct cache *cache, struct cache_item *item)
 {
+	TracePrintf(2, "Assigning item %d to head of cache\n", item->num);
 	if (cache->head == item) return;
+	if (item->prev != NULL) {
+		item->prev->next = item->next;
+		if (item->next == NULL) {
+			cache->tail = item->prev;
+		} else {
+			item->next->prev = item->prev;
+		}
+	} 
 	item->prev = NULL;
 	item->next = cache->head;
-	free(item->value);
 	// Check for existing head item
 	if (cache->head != NULL) cache->head->prev = item;
 	// Assign tail if nonexistent
 	if (cache->tail == NULL) cache->tail = item;
 	cache->head = item;
+}
+
+/**
+ * Check the cache before actually read from disk
+ */
+int ReadSectorWrapper(int sector_num, void *buf) 
+{
+	// Check the cache first
+	void *cache_sector = GetFromCache(block_cache, sector_num);
+	if (cache_sector != NULL) {
+		TracePrintf(3, "Found block %d in cache\n", sector_num);
+		memcpy(buf, cache_sector, SECTORSIZE);
+		return 0;
+	}
+
+	// if we can't find anything in the cache, do the ReadSector
+	if (ReadSector(sector_num, buf) == ERROR) {
+		TracePrintf(0, "Failed to read from block %d\n", sector_num);
+		return ERROR;
+	}
+	PutIntoCache(block_cache, sector_num, buf);
+
+	return 0;
+}
+
+/**
+ * Write to disk and also update the cache
+ */
+int WriteSectorWrapper(int sector_num, void *buf)
+{
+	if (WriteSector(sector_num, buf) == ERROR) {
+		TracePrintf(0, "Failed to write to block %d\n", sector_num);
+		return ERROR;
+	}
+	PutIntoCache(block_cache, sector_num, buf);
+
+	return 0;
+}
+
+
+void PrintCache(struct cache* cache) 
+{
+	struct cache_item *head = cache->head;
+	while (head != NULL) {
+		if (cache == block_cache) {
+			TracePrintf(4, "Block Cache next item num %d\n", head->num);
+		} else {
+			TracePrintf(4, "Inode Cache next item num %d with size %d of type %d\n", head->num, ((struct inode *)head->value)->size, ((struct inode *)head->value)->type);
+		}
+		head = head->next;
+	}
 }

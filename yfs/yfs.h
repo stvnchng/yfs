@@ -30,6 +30,9 @@ void *GetFromCache(struct cache *cache, int num);
 void PutIntoCache(struct cache *cache, int num, void *value);
 void RemoveFromCache(struct cache *cache, struct cache_item *item);
 void AssignHead(struct cache *cache, struct cache_item *item);
+int ReadSectorWrapper(int sector_num, void *buf);
+int WriteSectorWrapper(int sector_num, void *buf);
+void PrintCache(struct cache* cache); 
 
 /**
  *  Global Variables

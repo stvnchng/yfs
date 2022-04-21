@@ -13,7 +13,7 @@ int YFSOpen(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSCreate\n");
+        printf("Bad arguments passed to YFSOpen\n");
         return ERROR;
     }
 
@@ -85,7 +85,7 @@ int YFSMkDir(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSCreate\n");
+        printf("Bad arguments passed to YFSMkDir\n");
         return ERROR;
     }
 
@@ -100,7 +100,7 @@ int YFSRmDir(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSCreate\n");
+        printf("Bad arguments passed to YFSRmDir\n");
         return ERROR;
     }
 
@@ -113,8 +113,16 @@ int YFSRmDir(struct msg *msg, int pid)
 
 int YFSChDir(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    if (pathname == NULL) {
+        printf("Bad arguments passed to YFSChDir\n");
+        return ERROR;
+    }
+
+    int inum = process_path(pathname, msg->data1, CHDIR);
+    if (inum == ERROR) return ERROR;
+    msg->data1 = inum;
+
     return 0;
 }
 

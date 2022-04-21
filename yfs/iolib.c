@@ -286,6 +286,9 @@ int SendMessageWithPath(int type, char *pathname)
         printf("Error: pathname has invalid length\n");
         return ERROR;
     }
+    // modify pathname if needed
+    if (pathname[GetPathLen(pathname) - 1] == '/')
+        pathname[GetPathLen(pathname) - 1] = '\0';
     
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
@@ -309,7 +312,7 @@ int SendMessageRW(int type, struct opened_file curr_file, void* buf, int size)
         return ERROR;
     }
 
-     struct msg *msg = malloc(sizeof(struct msg));
+    struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
     msg->data1 = curr_file.inum; // store inode_num
     msg->data2 = curr_file.position; // store position in curr file

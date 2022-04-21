@@ -139,7 +139,7 @@ int Write(int fd, void *buf, int size)
     return bytes_written;
 }
 
-int Seek(int  fd, int offset, int whence) // TODO: needs review
+int Seek(int fd, int offset, int whence)
 {
     if (fd < 0 || fd > MAX_OPEN_FILES - 1 || (whence != SEEK_CUR && whence != SEEK_END && whence != SEEK_SET)) {
         printf("Invalid args to Seek\n");
@@ -151,13 +151,12 @@ int Seek(int  fd, int offset, int whence) // TODO: needs review
         return ERROR;
     }
 
-    struct msg *msg = malloc(sizeof(struct msg));
+    struct msg_seek *msg = malloc(sizeof(struct msg_seek));
     msg->type = SEEK;
-    msg->data1 = opened_files[fd].inum; //store inum
-    msg->data2 = offset; //store len for server CopyFrom operation 
-    msg->data3 = whence; //store len for server CopyFrom operation 
-    // msg->ptr1 = ; 
-    //TODO need to update offset and store more members depending on yfsseek
+    msg->inum = opened_files[fd].inum; //store inum
+    msg->position = opened_files[fd].position; //store file position
+    msg->offset = offset; //store len for server CopyFrom operation 
+    msg->whence = whence; //store len for server CopyFrom operation 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
         free(msg);
         printf("Error during Send for STAT\n");
@@ -180,9 +179,9 @@ int Link(char *oldname, char *newname)
 
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = LINK;
-    msg->data1 = curr_inum; //store inum
-    msg->data2 = GetPathLen(oldname); //store len for server CopyFrom operation 
-    msg->data3 = GetPathLen(newname); //store len for server CopyFrom operation 
+    msg->inum = curr_inum; //store inum
+    msg->data1 = GetPathLen(oldname) + 1; //store len for server CopyFrom operation 
+    msg->data2 = GetPathLen(newname) + 1; //store len for server CopyFrom operation 
     msg->ptr1 = oldname;
     msg->ptr2 = newname;
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
@@ -202,9 +201,6 @@ int Unlink(char *pathname)
     }
     return 0;
 }
-
-// int SymLink(char *, char *);
-// int ReadLink(char *, char *, int);
 
 int MkDir(char *pathname)
 {
@@ -226,10 +222,12 @@ int RmDir(char *pathname)
 
 int ChDir(char *pathname)
 {
-    if (SendMessageWithPath(CHDIR, pathname) == ERROR) {
+    int new_inum = SendMessageWithPath(CHDIR, pathname);
+    if (new_inum == ERROR) {
         printf("Error in send message for Unlink\n");
         return ERROR;
     }
+    curr_inum = new_inum; // point curr inum to inum of chdir
     return 0;
 }
 
@@ -242,8 +240,8 @@ int Stat(char *pathname, struct Stat *statbuf)
     
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = STAT;
-    msg->data1 = curr_inum; //store inum
-    msg->data2 = GetPathLen(pathname); //store len for server CopyFrom operation 
+    msg->inum = curr_inum; //store inum
+    msg->data1 = GetPathLen(pathname) + 1; //store len for server CopyFrom operation 
     msg->ptr1 = pathname;
     msg->ptr2 = statbuf;
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
@@ -292,8 +290,8 @@ int SendMessageWithPath(int type, char *pathname)
     
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
-    msg->data1 = curr_inum; // store inode_num
-    msg->data2 = GetPathLen(pathname); // store len for server CopyFrom operation
+    msg->inum = curr_inum; // store inode_num
+    msg->data1 = GetPathLen(pathname) + 1; // store len for server CopyFrom operation
     msg->ptr1 = pathname;
 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
@@ -301,8 +299,9 @@ int SendMessageWithPath(int type, char *pathname)
         printf("Error during Send for type %d\n", msg->type);
         return ERROR;
     }
+    int inum = msg->inum;
     free(msg);
-    return 0;
+    return inum;
 }
 
 int SendMessageRW(int type, struct opened_file curr_file, void* buf, int size)
@@ -314,9 +313,9 @@ int SendMessageRW(int type, struct opened_file curr_file, void* buf, int size)
 
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
-    msg->data1 = curr_file.inum; // store inode_num
-    msg->data2 = curr_file.position; // store position in curr file
-    msg->data3 = size; // store len for server CopyFrom operation
+    msg->inum = curr_file.inum; // store inode_num
+    msg->data1 = curr_file.position; // store position in curr file
+    msg->data2 = size; // store len for server CopyFrom operation
     msg->ptr2 = buf;
 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {

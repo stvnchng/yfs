@@ -11,15 +11,15 @@
  */
 int YFSOpen(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
         printf("Bad arguments passed to YFSOpen\n");
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, OPEN);
+    int inum = process_path(pathname, msg->inum, OPEN);
     if (inum == ERROR) return ERROR;
-    msg->data1 = inum;
+    msg->inum = inum;
 
     if (get_inode(inum) == NULL) {
         return ERROR;
@@ -30,15 +30,15 @@ int YFSOpen(struct msg *msg, int pid)
 
 int YFSCreate(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
         printf("Bad arguments passed to YFSCreate\n");
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, CREATE);
+    int inum = process_path(pathname, msg->inum, CREATE);
     if (inum == ERROR) return ERROR;
-    msg->data1 = inum;
+    msg->inum = inum;
 
     return 0;
 }
@@ -57,11 +57,38 @@ int YFSWrite(struct msg *msg, int pid)
     return 0;
 }
 
-int YFSSeek(struct msg *msg, int pid)
+int YFSSeek(struct msg_seek *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
-    return 0;
+    (void)pid; // might use if we decide to write errors to msg and reply
+    struct inode *inode = get_inode(msg->inum);
+    if (inode == NULL) {
+        printf("Couldn't find inode in YFSSeek\n");
+        return ERROR;
+    }
+    if (msg->position < 0 || msg->position > inode->size) {
+        printf("Invalid position passed to YFSSeek\n");
+        return ERROR;
+    }
+    // Check if the size
+    int offset = msg->offset;
+    switch (msg->whence)
+    {
+    case SEEK_SET: // from beginning
+        msg->position = offset;
+        break;
+    case SEEK_CUR: // from current
+        msg->position = msg->position + offset;
+        break;
+    case SEEK_END: // from end
+        msg->position = inode->size + offset;
+        break;
+    }
+     // file position cannot go before start of file or further than inode
+    if (msg->position < 0 || msg->position > inode->size) {
+        printf("Invalid position set in YFSSeek\n");
+        return ERROR;
+    }
+    return msg->position;
 }
 
 int YFSLink(struct msg *msg, int pid)
@@ -83,45 +110,45 @@ int YFSUnlink(struct msg *msg, int pid)
 
 int YFSMkDir(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
         printf("Bad arguments passed to YFSMkDir\n");
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, MKDIR);
+    int inum = process_path(pathname, msg->inum, MKDIR);
     if (inum == ERROR) return ERROR;
-    msg->data1 = inum;
+    msg->inum = inum;
 
     return 0;
 }
 
 int YFSRmDir(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
         printf("Bad arguments passed to YFSRmDir\n");
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, RMDIR);
+    int inum = process_path(pathname, msg->inum, RMDIR);
     if (inum == ERROR) return ERROR;
-    msg->data1 = inum;
+    msg->inum = inum;
 
     return 0;
 }
 
 int YFSChDir(struct msg *msg, int pid)
 {
-    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data2);
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
         printf("Bad arguments passed to YFSChDir\n");
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->data1, CHDIR);
+    int inum = process_path(pathname, msg->inum, CHDIR);
     if (inum == ERROR) return ERROR;
-    msg->data1 = inum;
+    msg->inum = inum;
 
     return 0;
 }
@@ -206,7 +233,7 @@ void HandleRequest(struct msg *msg)
     case SEEK:
         TracePrintf(0, "[SEEK]\n");
         printf("[SEEK]\n");
-        YFSSeek(msg, pid);
+        YFSSeek((struct msg_seek *) msg, pid);
         break;
     case LINK:
         TracePrintf(0, "[LINK]\n");
@@ -221,12 +248,10 @@ void HandleRequest(struct msg *msg)
     case SYMLINK:
         TracePrintf(0, "[SYMLINK]\n");
         printf("[SYMLINK]\n");
-        // SymLink(msg, pid);
         break;
     case READLINK:
         TracePrintf(0, "[READLINK]\n");
         printf("[READLINK]\n");
-        // ReadLink(msg, pid);
         break;
     case MKDIR:
         TracePrintf(0, "[MKDIR]\n");
@@ -278,3 +303,9 @@ char *GetMessagePath(int srcpid, void *src, int pathlen)
     }
     return dest;
 }
+
+// int ReplyWithError(struct msg *msg, int pid)
+// {
+//     msg->type = ERROR;
+//     return Reply((void *) msg, pid);
+// }

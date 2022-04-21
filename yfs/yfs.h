@@ -69,14 +69,23 @@ short *free_inode_list;
  * Each generic data member describes what var it can potentially hold.
  */
 struct msg {
-    int type; // the type of request
-    int data1; // use this for storing inode_num or [fd] (for Seek) 
-    int data2; // use this for [fd], [len] (for ReadLink), or [offset] (for Seek)
-    int data3; // use this for [size] or [whence] (for Seek)
-    void *ptr1; // use this for [pathname] or [oldname] 
-    void *ptr2; // use this for [newname], [buf], or [statbuf]
+    int type;
+    int inum;
+    int data1; // [fd] or to hold len of [pathname] or [oldname]
+    int data2; // [size] in Read/Write or to hold len of [newname]
+    void *ptr1; // [pathname] or [oldname] 
+    void *ptr2; // [newname], [buf], or [statbuf]
 };
 
+// A message struct for seek since it requires 5 int members
+struct msg_seek {
+    int type; // should always be SEEK
+    int inum;
+    int position; // position in file
+    int offset;
+    int whence;
+    char padding[12]; // makes this struct 32 bytes
+};
 
 /**
  * Definitions for helper functions 

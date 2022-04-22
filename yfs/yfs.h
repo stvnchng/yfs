@@ -73,7 +73,7 @@ struct msg {
     int inum;
     int data1; // [fd] or to hold len of [pathname] or [oldname]
     int data2; // [size] in Read/Write or to hold len of [newname]
-    void *ptr1; // [pathname] or [oldname] 
+    void *ptr1; // [oldname] or [pathname]
     void *ptr2; // [newname], [buf], or [statbuf]
 };
 

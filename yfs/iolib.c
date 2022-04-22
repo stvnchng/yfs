@@ -251,6 +251,7 @@ int Stat(char *pathname, struct Stat *statbuf)
         printf("Error during Send for STAT\n");
         return ERROR;
     }
+    // statbuf = (struct Stat *) msg->ptr2;
     // update statbuf with contents of reply message
     statbuf->inum = msg->inum; // should be the same
     statbuf->type = msg->type; // need to overwrite message type with inode type
@@ -294,7 +295,8 @@ int SendMessageWithPath(int type, char *pathname)
     }
 	
     // modify pathname if needed
-    if (pathname[len - 2] == '/') {
+    if (pathname[len - 2] == '/' && pathname[len - 1] == '/') {
+        // printf("Before modify name is [%s]\n", pathname);
         pathname[len - 2] = '\0';
 	}
     

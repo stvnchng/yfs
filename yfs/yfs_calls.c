@@ -109,20 +109,30 @@ int YFSSeek(struct msg_seek *msg, int pid)
 
 int YFSLink(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *oldname = GetMessagePath(pid, msg->ptr1, msg->data1);
+    char *newname = GetMessagePath(pid, msg->ptr2, msg->data2);
+    if (oldname == NULL || newname == NULL) {
+        printf("Invalid oldname or newname passed to YFSLink\n");
+        return ERROR;
+    }
+
+    // Create the link from newname to existing file oldname
+
     return 0;
 }
 
 int YFSUnlink(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
+    if (pathname == NULL) {
+        printf("Invalid pathname passed to YFSLink\n");
+        return ERROR;
+    }
+
+    // if this is the last link, the node should be freed.
+
     return 0;
 }
-
-// int SymLink(char *, char *);
-// int ReadLink(char *pathname, char *buf, int len);
 
 int YFSMkDir(struct msg *msg, int pid)
 {
@@ -177,7 +187,11 @@ int YFSStat(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, CHDIR);
+    printf("YFSStat pathname is %s\n", pathname);
+    printf("YFSStat msg->inum is %d\n", msg->inum);
+
+    int inum = process_path(pathname, msg->inum, STAT);
+    printf( "YFSStat inum is %d\n", inum);
     if (inum == ERROR) return ERROR;
     msg->inum = inum; // store inum into message
 
@@ -187,8 +201,26 @@ int YFSStat(struct msg *msg, int pid)
         return ERROR;
     }
 
-    struct Stat *statbuf = (struct Stat *) msg->ptr2;
-    printf("statbuf contents: %d %d %d %d\n", statbuf->inum, statbuf->type, statbuf->size, statbuf->nlink);
+    int pathlen = msg->data1;
+    struct Stat *statbuf = malloc(sizeof(struct Stat)); 
+    statbuf->inum = inum;
+    statbuf->type = inode->type;
+    printf("inode size is %d\n", inode->size);
+    statbuf->size = inode->size;
+    statbuf->nlink = inode->nlink;
+
+    // TODO: need to check over this still
+    // copy statbuf info from server back to client 
+    if (CopyTo(pid, msg->ptr2, statbuf, pathlen) == ERROR) {
+        printf("Error in CopyTo for YFSStat\n");
+        return ERROR;
+    }
+
+    msg->type = inode->type; // overwrite message type with inode type
+    msg->data1 = inode->size;
+    // memcpy(statbuf, (struct Stat *) msg->ptr2, sizeof(struct Stat));
+    printf("YFSStat return message contents: inum %d, nlnk %d, size %d, type %d\n",
+           statbuf->inum, statbuf->nlink, statbuf->size, statbuf->type);
     return 0;
 }
 

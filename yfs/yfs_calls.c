@@ -13,7 +13,7 @@ int YFSOpen(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSOpen\n");
+        printf("Pathname null in YFSOpen\n");
         return ERROR;
     }
 
@@ -32,7 +32,7 @@ int YFSCreate(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSCreate\n");
+        printf("Pathname null in YFSCreate\n");
         return ERROR;
     }
 
@@ -45,16 +45,27 @@ int YFSCreate(struct msg *msg, int pid)
 
 int YFSRead(struct msg *msg, int pid)
 {
-    (void)msg;
     (void)pid;
-    return 0;
+    int bytes_written = read_helper(msg->inum, msg->data1, msg->data2, msg->ptr1);
+    if (bytes_written == ERROR) {
+        printf("Error in YFSRead\n");
+        return ERROR;
+    }
+    msg->data1 = bytes_written;
+
+    return bytes_written;
 }
 
 int YFSWrite(struct msg *msg, int pid)
 {
-    (void)msg;
     (void)pid;
-    return 0;
+    int bytes_written = write_helper(msg->inum, msg->data1, msg->data2, msg->ptr1);
+    if (bytes_written == ERROR) {
+        printf("Error in YFSWrite\n");
+        return ERROR;
+    }
+    msg->data1 = bytes_written;
+    return bytes_written;
 }
 
 int YFSSeek(struct msg_seek *msg, int pid)
@@ -112,7 +123,7 @@ int YFSMkDir(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSMkDir\n");
+        printf("Pathname null in YFSMkDir\n");
         return ERROR;
     }
 
@@ -127,7 +138,7 @@ int YFSRmDir(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSRmDir\n");
+        printf("Pathname null in YFSRmDir\n");
         return ERROR;
     }
 
@@ -142,7 +153,7 @@ int YFSChDir(struct msg *msg, int pid)
 {
     char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
     if (pathname == NULL) {
-        printf("Bad arguments passed to YFSChDir\n");
+        printf("Pathname null in YFSChDir\n");
         return ERROR;
     }
 
@@ -155,8 +166,24 @@ int YFSChDir(struct msg *msg, int pid)
 
 int YFSStat(struct msg *msg, int pid)
 {
-    (void)msg;
-    (void)pid;
+    char *pathname = GetMessagePath(pid, msg->ptr1, msg->data1);
+    if (pathname == NULL) {
+        printf("Pathname null in YFSStat\n");
+        return ERROR;
+    }
+
+    int inum = process_path(pathname, msg->inum, CHDIR);
+    if (inum == ERROR) return ERROR;
+    msg->inum = inum; // store inum into message
+
+    struct inode *inode = get_inode(inum);
+    if (inode == NULL) {
+        printf("Null inode in YFSStat\n");
+        return ERROR;
+    }
+
+    struct Stat *statbuf = (struct Stat *) msg->ptr2;
+    printf("statbuf contents: %d %d %d %d\n", statbuf->inum, statbuf->type, statbuf->size, statbuf->nlink);
     return 0;
 }
 

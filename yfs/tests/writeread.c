@@ -40,4 +40,5 @@ main()
     printf("Close status %d\n", status);
 
     Shutdown();
+    Exit(0);
 }

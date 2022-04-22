@@ -24,7 +24,7 @@
 #	For example, the Makefile will make test1 out of test1.c,
 #	if you have a file named test1.c in this directory.
 #
-TEST = mkyfs tests/sample1 tests/sample2 tests/topen2 tests/tcreate2
+TEST = mkyfs tests/sample1 tests/sample2 tests/topen2 tests/tcreate2 tests/writeread
 
 #
 #	Define the list of everything to be made by this Makefile.

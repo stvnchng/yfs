@@ -94,7 +94,7 @@ int Create(char *pathname)
 int Read(int fd, void *buf, int size) // TODO might need to read over
 {
    if (fd < 0 || fd > MAX_OPEN_FILES - 1 || buf == NULL || size < 0) {
-        printf("Bad arguments to Read\n");
+        printf("Invalid arguments to Read\n");
         return ERROR;
     }
 
@@ -118,7 +118,7 @@ int Read(int fd, void *buf, int size) // TODO might need to read over
 int Write(int fd, void *buf, int size)
 {
     if (fd < 0 || fd > MAX_OPEN_FILES - 1 || buf == NULL || size < 0) {
-        printf("Bad arguments to Write\n");
+        printf("Invalid arguments to Write\n");
         return ERROR;
     }
 
@@ -159,7 +159,7 @@ int Seek(int fd, int offset, int whence)
     msg->whence = whence; //store len for server CopyFrom operation 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
         free(msg);
-        printf("Error during Send for STAT\n");
+        printf("Error during Send for SEEK\n");
         return ERROR;
     }
     free(msg);
@@ -205,7 +205,7 @@ int Unlink(char *pathname)
 int MkDir(char *pathname)
 {
     if (SendMessageWithPath(MKDIR, pathname) == ERROR) {
-        printf("Error in send message for Unlink\n");
+        printf("Error in send message for MkDir\n");
         return ERROR;
     }
     return 0;
@@ -214,7 +214,7 @@ int MkDir(char *pathname)
 int RmDir(char *pathname)
 {
     if (SendMessageWithPath(RMDIR, pathname) == ERROR) {
-        printf("Error in send message for Unlink\n");
+        printf("Error in send message for RmDir\n");
         return ERROR;
     }
     return 0;
@@ -224,7 +224,7 @@ int ChDir(char *pathname)
 {
     int new_inum = SendMessageWithPath(CHDIR, pathname);
     if (new_inum == ERROR) {
-        printf("Error in send message for Unlink\n");
+        printf("Error in send message for ChDir\n");
         return ERROR;
     }
     curr_inum = new_inum; // point curr inum to inum of chdir
@@ -239,9 +239,9 @@ int Stat(char *pathname, struct Stat *statbuf)
     }
     
     struct msg *msg = malloc(sizeof(struct msg));
-    msg->type = STAT;
+    msg->type = STAT; // will be overwritten with inode type after Send
     msg->inum = curr_inum; //store inum
-    msg->data1 = GetPathLen(pathname) + 1; //store len for server CopyFrom operation 
+    msg->data1 = GetPathLen(pathname) + 1; // will be overwritten with size 
     msg->ptr1 = pathname;
     msg->ptr2 = statbuf;
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {
@@ -249,6 +249,11 @@ int Stat(char *pathname, struct Stat *statbuf)
         printf("Error during Send for STAT\n");
         return ERROR;
     }
+    // update statbuf with contents of reply message
+    statbuf->inum = msg->inum; // should be the same
+    statbuf->type = msg->type; // need to overwrite message type with inode type
+    statbuf->size = msg->data1; // need to overwrite with size
+    statbuf->nlink = msg->data2; // need to write nlink into data2
     free(msg);
     return 0;
 }
@@ -287,8 +292,8 @@ int SendMessageWithPath(int type, char *pathname)
     }
 	
     // modify pathname if needed
-    if (pathname[len - 1] == '/') {
-        pathname[len - 1] = '\0';
+    if (pathname[len - 2] == '/') {
+        pathname[len - 2] = '\0';
 	}
     
     struct msg *msg = malloc(sizeof(struct msg));
@@ -326,8 +331,9 @@ int SendMessageRW(int type, struct opened_file curr_file, void* buf, int size)
         printf("Error during Send for type %d\n", msg->type);
         return ERROR;
     }
+    int bytes_written = msg->data1; // collect reply data
     free(msg);
-    return 0;
+    return bytes_written;
 }
 
 int GetPathLen(char *pathname)

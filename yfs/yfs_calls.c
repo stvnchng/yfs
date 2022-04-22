@@ -45,12 +45,16 @@ int YFSCreate(struct msg *msg, int pid)
 
 int YFSRead(struct msg *msg, int pid)
 {
-    (void)pid;
-    int bytes_written = read_helper(msg->inum, msg->data1, msg->data2, msg->ptr1);
+    void *readbuf = malloc(msg->data2); 
+	if (readbuf == NULL) {
+		return ERROR;
+	}
+    int bytes_written = read_helper(msg->inum, msg->data1, msg->data2, readbuf);
     if (bytes_written == ERROR) {
         printf("Error in YFSRead\n");
         return ERROR;
     }
+	SendBuf(pid, msg->ptr2, readbuf, msg->data2); 	
     msg->data1 = bytes_written;
 
     return bytes_written;
@@ -58,12 +62,13 @@ int YFSRead(struct msg *msg, int pid)
 
 int YFSWrite(struct msg *msg, int pid)
 {
-    (void)pid;
-    int bytes_written = write_helper(msg->inum, msg->data1, msg->data2, msg->ptr1);
+	void *writebuf = GetBuf(pid, msg->ptr2, msg->data2);
+    int bytes_written = write_helper(msg->inum, msg->data1, msg->data2, writebuf);
     if (bytes_written == ERROR) {
         printf("Error in YFSWrite\n");
         return ERROR;
     }
+	free(writebuf);
     msg->data1 = bytes_written;
     return bytes_written;
 }
@@ -331,6 +336,25 @@ char *GetMessagePath(int srcpid, void *src, int pathlen)
         return NULL;
     }
     return dest;
+}
+
+void *GetBuf(int srcpid, void *src, int buflen) 
+{
+	void *dest = malloc(buflen);
+	if (CopyFrom(srcpid, dest, src, buflen) == ERROR) {
+		printf("Error occurred at CopyFrom in GetBuf\n");
+		return NULL;
+	}
+	return dest;
+}
+
+int SendBuf(int destpid, void *dest, void *src, int buflen)
+{
+	if (CopyTo(destpid, dest, src, buflen) == ERROR) {
+		printf("Error occurred at CopyTo in SendBufWrite\n");
+		return ERROR;
+	}
+	return 0;
 }
 
 // int ReplyWithError(struct msg *msg, int pid)

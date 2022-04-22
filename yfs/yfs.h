@@ -93,4 +93,6 @@ struct msg_seek {
 int InitYFS();
 int HandleRequest(struct msg *);
 char *GetMessagePath(int, void *, int);
+void *GetBuf(int srcpid, void *src, int buflen);
+int SendBuf(int destpid, void *dest, void *src, int buflen);
 

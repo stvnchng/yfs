@@ -772,13 +772,20 @@ int read_helper(int inum, int pos, int size, void *buf)
 		return ERROR;
 	}
 
-	void *block_ptr;
-	if ((block_ptr = get_block(block_num)) == NULL) {
+	void *block_ptr = get_block(block_num);
+	if (block_ptr == NULL) {
 		return ERROR;
 	}
 	TracePrintf(1, "The first block is at %d with %d space left.\n", block_num, BLOCKSIZE - (pos % BLOCKSIZE));
 
-	memcpy(buf, block_ptr + (pos % BLOCKSIZE), BLOCKSIZE - (pos % BLOCKSIZE));
+	if (res > BLOCKSIZE - (pos % BLOCKSIZE)) {
+		memcpy(buf, block_ptr + (pos % BLOCKSIZE), BLOCKSIZE - (pos % BLOCKSIZE));
+	} else {
+		memcpy(buf, block_ptr + (pos % BLOCKSIZE), res);
+		free(block_ptr);
+		TracePrintf(0, "Finish reading from memory\n");
+		return res;
+	}
 	buf += BLOCKSIZE - (pos % BLOCKSIZE);
 	remain_size -= BLOCKSIZE - (pos % BLOCKSIZE);
 	free(block_ptr);

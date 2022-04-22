@@ -152,6 +152,7 @@ void *GetFromCache(struct cache *cache, int num)
 	if (res == NULL) return NULL; //means inode/block not in cache
 	// if head is not res, move it to head (LRU)
 	if (cache->head != res) {
+		TracePrintf(2, "num %d, itemNum %d\n", num, res->num);
 		// RemoveFromCache(cache, res);
 		AssignHead(cache, res);
 	}
@@ -206,7 +207,6 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 
 	if (cache->size >= cache->maxsize) {
 		// LRU: If the cache is maxcap, start removing from the tail
-		hash_table_remove(cache->ht, cache->tail->num); //remove from ht and cache
 		RemoveFromCache(cache, cache->tail);
 	} else {
 		cache->size = cache->size + 1; // increment size
@@ -219,6 +219,7 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 
 void RemoveFromCache(struct cache *cache, struct cache_item *item)
 {
+	hash_table_remove(cache->ht, item->num); //remove from ht and cache
 	if (cache == block_cache) {
 		TracePrintf(2, "Starts removing block %d from block cache\n", item->num);
 	} else {

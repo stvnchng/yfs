@@ -420,7 +420,6 @@ int create_stuff(char *name, int parent_inum, short type)
 			if (status == ERROR) {
 				add_free_block(free_block);
 				free(new_entry);
-				TracePrintf(0, "Failed to write to sector %d\n", free_block);
 				return ERROR;
 			}
 			parent_inode->direct[num_blocks] = free_block;
@@ -430,7 +429,6 @@ int create_stuff(char *name, int parent_inum, short type)
 			status = ReadSectorWrapper(parent_inode->direct[num_blocks - 1], last_block);
 			if (status == ERROR) { 
 				free(new_entry);
-				TracePrintf(0, "Failed to read from sector %d\n", num_blocks - 1);
 				return ERROR;
 			}
 			// put the new dir_entry at the end of the last block
@@ -513,7 +511,7 @@ int create_stuff(char *name, int parent_inum, short type)
 		free(new_entry);
 		return ERROR;
 	}
-	TracePrintf(1, "Finished writing the updated parent inode to disk.\n");
+	TracePrintf(1, "Finished writing the updated parent inode %d to disk.\n", parent_inum);
 
 	int return_inum = new_entry->inum;
 	// Set up the new inode

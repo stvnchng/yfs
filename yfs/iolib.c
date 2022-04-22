@@ -113,7 +113,7 @@ int Read(int fd, void *buf, int size) // TODO might need to read over
     }
 
     // increment position of file to be written
-    curr_file.position += bytes_read;
+    opened_files[fd].position += bytes_read;
     return bytes_read;
 }
 

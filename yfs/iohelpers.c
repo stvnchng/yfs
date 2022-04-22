@@ -857,27 +857,25 @@ int write_helper(int inum, int pos, int size, void *buf)
 	// malloc a buffer that is of size SECTORSIZE
  	void *temp_buf = malloc(SECTORSIZE);
 	// if size is less than SECTORSIZE, we have to put the buffer into the temp_buf
-	if (size < SECTORSIZE) {
-		if (size < BLOCKSIZE - (pos % BLOCKSIZE)) {
-			memcpy(temp_buf, buf, size);
-			if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
-				return ERROR;
-			}
-			// Write to inode
-			inode->size += size;
-			write_inode(inum, inode);
-			free(temp_buf);
-			TracePrintf(0, "Finished writing %d bytes of data to block %d\n", size, block_num);
-			return size;
-		} else {
-			memcpy(temp_buf, buf, BLOCKSIZE - (pos % BLOCKSIZE));
-			if (WriteSectorWrapper(block_num, buf) == ERROR) {
-				return ERROR;
-			}
-			size_left -= BLOCKSIZE - (pos % BLOCKSIZE);
-			buf += BLOCKSIZE - (pos % BLOCKSIZE);
+	if (size < BLOCKSIZE - (pos % BLOCKSIZE)) {
+		memcpy(temp_buf + (pos % BLOCKSIZE), buf, size);
+		if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
+			return ERROR;
 		}
-	}
+		// Write to inode
+		inode->size += size;
+		write_inode(inum, inode);
+		free(temp_buf);
+		TracePrintf(0, "Finished writing %d bytes of data to block %d\n", size, block_num);
+		return size;
+	} else {
+		memcpy(temp_buf + (pos % BLOCKSIZE), buf, BLOCKSIZE - (pos % BLOCKSIZE));
+		if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
+			return ERROR;
+		}
+		size_left -= BLOCKSIZE - (pos % BLOCKSIZE);
+		buf += BLOCKSIZE - (pos % BLOCKSIZE);
+	}	
 
 	// Write to blocks that are after the first block
 	while (size_left > 0) {

@@ -898,6 +898,65 @@ int write_helper(int inum, int pos, int size, void *buf)
 }
 
 
+int link_helper(int inum, int curr_inum, char *new_name)
+{
+	// Get the current inode
+	struct inode *curr_inode = get_inode(curr_inum);
+
+	int num_blocks = get_num_blocks(curr_inode);
+
+	// Get the index of the to-be-created dir entry
+	int create_new_block = 0;
+	int last_dir_index = get_num_dir(curr_inode) % num_dir_in_block;
+	if (last_dir_index == 0) {
+		create_new_block = 1;
+		if (num_blocks++ == NUM_DIRECT) {
+			curr_inode->indirect = remove_free_block();
+		}
+	}
+
+	// Get the last block in the inode
+	struct dir_entry last_entries[BLOCKSIZE/sizeof(struct dir_entry)];
+	int last_block_num, last_block_index;
+	if (num_blocks <= NUM_DIRECT) {
+		last_block_index = num_blocks - 1;
+		if (create_new_block == 1) {
+			curr_inode->direct[last_block_index] = remove_free_block();
+		}
+		last_block_num = curr_inode->direct[last_block_index];
+	} else {
+		last_block_index = num_blocks - NUM_DIRECT - 1;
+		int indirect_blocks[BLOCKSIZE/4];
+		if (ReadSectorWrapper(curr_inode->indirect, indirect_blocks) == ERROR) {
+			return ERROR;
+		}
+		if (create_new_block == 1) {
+			indirect_blocks[last_block_index] = remove_free_block();
+			if (WriteSectorWrapper(curr_inode->indirect, indirect_blocks) == ERROR) {
+				return ERROR;
+			}
+		}
+		last_block_num = indirect_blocks[last_block_index];
+	}
+	// If we created a new block (create_new_block == 1) ReadSector will not be necessary
+	// since there are nothing in the block
+	if (create_new_block == 0 && ReadSectorWrapper(last_block_num, last_entries) == ERROR) {
+		return ERROR;
+	}
+
+	// Create a new dir entry
+	last_entries[last_dir_index].inum = inum;
+	memcpy(last_entries[last_dir_index].name, new_name, DIRNAMELEN);
+	if (WriteSectorWrapper(last_block_num, last_entries) == ERROR) {
+		return ERROR;
+	}
+	
+	// Increase the size of the current inode
+	curr_inode->size += sizeof(struct dir_entry);
+	// Write the updated current inode to the disk and cache
+	write_inode(curr_inum, curr_inode);
+	return 0;
+}
 
 
 

@@ -17,4 +17,5 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_blocks, int parent_num_dir);
 int read_helper(int inum, int pos, int size, void *buf);
 int write_helper(int inum, int pos, int size, void *buf);
+int link_helper(int inum, int curr_inum, char *new_name);
 

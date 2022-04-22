@@ -18,6 +18,7 @@ main()
 	printf("\n%d\n\n", ChDir("/foo"));
 	printf("\n%d\n\n", Create("./happy"));
 	printf("\n%d\n\n", Create("/foo/lol"));
+	printf("\n%d\n\n", ChDir("../"));
 	printf("\n%d\n\n", Open("/bar"));
 
 	Shutdown();

@@ -31,7 +31,9 @@ main(int argc, char **argv)
             while (1) {
                 struct msg *msg = malloc(sizeof(struct msg));
 
-                HandleRequest(msg);
+                if (HandleRequest(msg) == ERROR) {
+					return ERROR;
+				}
                 free(msg);
             }
         }

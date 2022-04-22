@@ -280,18 +280,21 @@ int SendMessage(int type)
 /* Helper for requests with pathname param */
 int SendMessageWithPath(int type, char *pathname)
 {
-    if (GetPathLen(pathname) == ERROR) {
+	int len;
+    if ((len = GetPathLen(pathname)) == ERROR) {
         printf("Error: pathname has invalid length\n");
         return ERROR;
     }
+	
     // modify pathname if needed
-    if (pathname[GetPathLen(pathname) - 1] == '/')
-        pathname[GetPathLen(pathname) - 1] = '\0';
+    if (pathname[len - 1] == '/') {
+        pathname[len - 1] = '\0';
+	}
     
     struct msg *msg = malloc(sizeof(struct msg));
     msg->type = type;
     msg->inum = curr_inum; // store inode_num
-    msg->data1 = GetPathLen(pathname) + 1; // store len for server CopyFrom operation
+    msg->data1 = pathname[len - 1] == '\0' ? len : len + 1; // store len for server CopyFrom operation
     msg->ptr1 = pathname;
 
     if (Send((void *) msg, -FILE_SERVER) == ERROR) {

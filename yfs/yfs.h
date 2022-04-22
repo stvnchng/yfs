@@ -91,6 +91,6 @@ struct msg_seek {
  * Definitions for helper functions 
  */
 int InitYFS();
-void HandleRequest(struct msg *);
+int HandleRequest(struct msg *);
 char *GetMessagePath(int, void *, int);
 

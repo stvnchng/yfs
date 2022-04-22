@@ -200,7 +200,7 @@ int YFSShutdown(struct msg *msg, int pid)
     Exit(0);
 }
 
-void HandleRequest(struct msg *msg)
+int HandleRequest(struct msg *msg)
 {
     int pid = Receive(msg);
     if (pid == ERROR) {
@@ -291,7 +291,9 @@ void HandleRequest(struct msg *msg)
     // send reply to the blocked process
     if (Reply((void *) msg, pid) == ERROR) {
         printf("An error occurred during reply for pid %d\n", pid);
+		return ERROR;
     }
+	return 0;
 }
 
 char *GetMessagePath(int srcpid, void *src, int pathlen)

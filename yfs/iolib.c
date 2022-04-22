@@ -27,7 +27,8 @@ int SendMessageRW(int type, struct opened_file curr_file, void* buf, int size);
  */
 int Open(char *pathname)
 {
-    if (SendMessageWithPath(OPEN, pathname) == ERROR) {
+	int file_inum;
+    if ((file_inum = SendMessageWithPath(OPEN, pathname)) == ERROR) {
         printf("Error in send message for Open\n");
         return ERROR;
     }
@@ -45,7 +46,7 @@ int Open(char *pathname)
         return ERROR;
     }
 
-    opened_files[fd].inum = curr_inum;
+    opened_files[fd].inum = file_inum;
     opened_files[fd].occupied = 1;
     opened_files[fd].position = 0;
     
@@ -66,7 +67,8 @@ int Close(int fd)
 
 int Create(char *pathname)
 {
-    if (SendMessageWithPath(CREATE, pathname) == ERROR) {
+	int file_inum;
+    if ((file_inum = SendMessageWithPath(CREATE, pathname)) == ERROR) {
         printf("Error in send message for Create\n");
         return ERROR;
     }
@@ -84,7 +86,7 @@ int Create(char *pathname)
         return ERROR;
     }
 
-    opened_files[fd].inum = curr_inum;
+    opened_files[fd].inum = file_inum;
     opened_files[fd].occupied = 1;
     opened_files[fd].position = 0;
 
@@ -135,7 +137,7 @@ int Write(int fd, void *buf, int size)
     }
 
     // increment position of file to be written
-    curr_file.position += bytes_written;
+    opened_files[fd].position += bytes_written;
     return bytes_written;
 }
 

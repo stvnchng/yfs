@@ -159,7 +159,15 @@ void *GetFromCache(struct cache *cache, int num)
 		AssignHead(cache, res);
 	}
 
-	return res->value; //value holds the inode/block
+	void *malloc_val;
+	if (cache == block_cache) {
+		malloc_val = malloc(BLOCKSIZE);
+		memcpy(malloc_val, res->value, BLOCKSIZE);
+	} else {
+		malloc_val = malloc(INODESIZE);
+		memcpy(malloc_val, res->value, INODESIZE);
+	}
+	return malloc_val; //value holds the inode/block
 }
 
 struct cache_item *GetItemFromCache(struct cache *cache, int num) 

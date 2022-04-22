@@ -368,6 +368,15 @@ int remove_free_block()
 	return ERROR;
 }
 
+/**
+ * Check whether the block at blocknum is free
+ */
+int check_block(int blocknum) 
+{
+	return free_block_list[blocknum];
+}
+
+
 int create_stuff(char *name, int parent_inum, short type) 
 {
 	if (type == INODE_REGULAR) {
@@ -758,6 +767,10 @@ int read_helper(int inum, int pos, int size, void *buf)
 		block_num = indirect[block_num - NUM_DIRECT];
 		free(indirect);
 	}
+	if (check_block(block_num) == 0) {
+		TracePrintf(0, "Block %d is not free. Cannot write to it.\n", block_num);
+		return ERROR;
+	}
 
 	void *block_ptr;
 	if ((block_ptr = get_block(block_num)) == NULL) {
@@ -769,6 +782,7 @@ int read_helper(int inum, int pos, int size, void *buf)
 	buf += BLOCKSIZE - (pos % BLOCKSIZE);
 	remain_size -= BLOCKSIZE - (pos % BLOCKSIZE);
 	free(block_ptr);
+	TracePrintf(1, "Finished Reading from the first block.\n");
 
 	// Deal with the fully loaded blocks in the middle
 	while (remain_size >= BLOCKSIZE) {
@@ -803,8 +817,24 @@ int read_helper(int inum, int pos, int size, void *buf)
 
 int write_helper(int inum, int pos, int size, void *buf)
 {
+	if (size == 0) {
+		return 0;
+	}
+
 	struct inode *inode = get_inode(inum);
+	// Check if inode is a directory
+	if (inode->type == INODE_DIRECTORY) {
+		TracePrintf(0, "Cannot write to a directory.\n");
+		return ERROR;
+	}
 	int size_left = size;
+
+	int num_blocks = get_num_blocks(inode);  // number of data blocks the file has
+											 //
+	// if the file is empty, give it a new block
+	if (inode->size == 0) {
+		inode->direct[0] = remove_free_block();
+	}
 
 	// Get the block where the position is at
 	int block_num = pos / BLOCKSIZE;	
@@ -815,11 +845,6 @@ int write_helper(int inum, int pos, int size, void *buf)
 		block_num = indirect[block_num - NUM_DIRECT];
 		free(indirect);
 	}
-
-	void *block_ptr;
-	if ((block_ptr = get_block(block_num)) == NULL) {
-		return ERROR;
-	}
 	TracePrintf(1, "The first block is at %d with %d space left.\n", block_num, BLOCKSIZE - (pos % BLOCKSIZE));
 
 	// malloc a buffer that is of size SECTORSIZE
@@ -828,9 +853,14 @@ int write_helper(int inum, int pos, int size, void *buf)
 	if (size < SECTORSIZE) {
 		if (size < BLOCKSIZE - (pos % BLOCKSIZE)) {
 			memcpy(temp_buf, buf, size);
-			if (WriteSectorWrapper(block_num, buf) == ERROR) {
+			if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
 				return ERROR;
 			}
+			// Write to inode
+			inode->size += size;
+			write_inode(inum, inode);
+			free(temp_buf);
+			TracePrintf(0, "Finished writing %d bytes of data to block %d\n", size, block_num);
 			return size;
 		} else {
 			memcpy(temp_buf, buf, BLOCKSIZE - (pos % BLOCKSIZE));
@@ -843,7 +873,6 @@ int write_helper(int inum, int pos, int size, void *buf)
 	}
 
 	// Write to blocks that are after the first block
-	int num_blocks = get_num_blocks(inode);
 	while (size_left > 0) {
 		++block_num;
 		if (block_num >= num_blocks) {   // We need a new block

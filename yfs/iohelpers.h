@@ -15,3 +15,6 @@ int remove_free_block();
 int create_stuff(char *name, int parent_inum, short type);
 int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int child_inum, int parent_inum);
 int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_blocks, int parent_num_dir);
+int read_helper(int inum, int pos, int size, void *buf);
+int write_helper(int inum, int pos, int size, void *buf);
+

@@ -117,6 +117,7 @@ int write_inode(short inum, struct inode *inode)
 		block_num = (inum + 1) / inode_per_block + 1;
 		status = ReadSectorWrapper(block_num, inode_block);
 		if (status == ERROR) { 
+			TracePrintf(0, "Failed to read from block %d\n", block_num);
 			return ERROR;
 		}
 		inode_block[(inum + 1) % inode_per_block - 1] = *inode;
@@ -126,6 +127,7 @@ int write_inode(short inum, struct inode *inode)
 	TracePrintf(1, "Write to block %d\n", block_num);
 	status = WriteSectorWrapper(block_num, inode_block);
 	if (status == ERROR) {
+		TracePrintf(0, "Failed to write to block %d\n", block_num);
 		return ERROR;
 	}
 	PutIntoCache(inode_cache, inum, inode);
@@ -971,7 +973,10 @@ int write_helper(int inum, int pos, int size, void *buf)
 	}
 
 	inode->size += size;
-	write_inode(inum, inode);
+	if (write_inode(inum, inode) == ERROR) {
+		free(temp_buf);
+		return ERROR;
+	}
 
 	free(temp_buf);
 	return size;

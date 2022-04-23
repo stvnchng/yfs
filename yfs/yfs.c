@@ -218,6 +218,7 @@ void PutIntoCache(struct cache *cache, int num, void *value)
 
 	if (cache->size >= cache->maxsize) {
 		// LRU: If the cache is maxcap, start removing from the tail
+		TracePrintf(0, "cache has reached its maximum\n");
 		RemoveFromCache(cache, cache->tail);
 	} else {
 		cache->size = cache->size + 1; // increment size
@@ -246,6 +247,7 @@ void RemoveFromCache(struct cache *cache, struct cache_item *item)
 	TracePrintf(3, "Starts freeing the old item from memory\n");
 	free(item->value);
 	free(item);
+	cache->size--;
 }
 
 void AssignHead(struct cache *cache, struct cache_item *item)
@@ -265,7 +267,9 @@ void AssignHead(struct cache *cache, struct cache_item *item)
 	// Check for existing head item
 	if (cache->head != NULL) cache->head->prev = item;
 	// Assign tail if nonexistent
-	if (cache->tail == NULL) cache->tail = item;
+	if (cache->tail == NULL) {
+		cache->tail = item;
+	}
 	cache->head = item;
 }
 

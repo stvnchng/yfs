@@ -105,6 +105,7 @@ int InitYFS()
 				TracePrintf(6, "The root inode is of size %d\n", inode_ptr[blocks_count].size);
 			}
 			// if inode is free, add it to the free inode list
+			inode_ptr[blocks_count].reuse = 0;
 			if (inode_ptr[blocks_count].type == INODE_FREE) {
 				free_inode_list[(i - 1) * (SECTORSIZE / INODESIZE) + blocks_count] = 1;
 				// add all the blocks it uses to free block list

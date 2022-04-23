@@ -340,6 +340,15 @@ int process_path(char *path, int curr_inum, int call_type, int link_type)
 				return ERROR;
 			}
 			break;
+		case CREATE:
+			if (start_inode->type == INODE_DIRECTORY) {
+				TracePrintf(0, "Cannot create a file with the same name as a directory.\n");
+				return ERROR;
+			} else {
+				start_inode->size = 0;
+				write_inode(return_inum, start_inode);
+			}
+			break;
 		case UNLINK:
 			return unlink_helper(component, start_inode, return_inum, parent_inode, parent_inum);
 		default:
@@ -373,6 +382,7 @@ int remove_free_inode(short type)
 			}	
 			free_inode_list[i] = 0;
 			free_inode->type = type;
+			free_inode->reuse += 1;
 			TracePrintf(2, "The free inode removed is %d\n", i+1);
 			return i + 1;
 		}
@@ -792,6 +802,9 @@ int read_helper(int inum, int pos, int size, void *buf)
 		res = size;
 	} else {
 		res = inode->size - pos;
+		if (res == 0) {
+			return 0;
+		}
 	}
 	remain_size = res;
 
@@ -803,10 +816,6 @@ int read_helper(int inum, int pos, int size, void *buf)
 		int *indirect = (int *)get_block(inode->indirect);
 		block_num = indirect[block_num - NUM_DIRECT];
 		free(indirect);
-	}
-	if (check_block(block_num) == 0) {
-		TracePrintf(0, "Block %d is not free. Cannot write to it.\n", block_num);
-		return ERROR;
 	}
 
 	void *block_ptr = get_block(block_num);

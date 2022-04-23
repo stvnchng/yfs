@@ -17,7 +17,7 @@ int YFSOpen(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, OPEN);
+    int inum = process_path(pathname, msg->inum, OPEN, -1);
     if (inum == ERROR) return ERROR;
     msg->inum = inum;
 
@@ -36,7 +36,7 @@ int YFSCreate(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, CREATE);
+    int inum = process_path(pathname, msg->inum, CREATE, -1);
     if (inum == ERROR) return ERROR;
     msg->inum = inum;
 
@@ -116,9 +116,15 @@ int YFSLink(struct msg *msg, int pid)
         return ERROR;
     }
 
-    // Create the link from newname to existing file oldname
+	int old_inum = process_path(oldname, msg->inum, LINK, 0);
+	if (old_inum <= 0) {
+		return ERROR;
+	}
 
-    return 0;
+    // Create the link from newname to existing file oldname
+	int status = process_path(newname, msg->inum, LINK, old_inum);
+
+    return status;
 }
 
 int YFSUnlink(struct msg *msg, int pid)
@@ -129,9 +135,9 @@ int YFSUnlink(struct msg *msg, int pid)
         return ERROR;
     }
 
-    // if this is the last link, the node should be freed.
+    int status = process_path(pathname, msg->inum, UNLINK, -1);
 
-    return 0;
+    return status;
 }
 
 int YFSMkDir(struct msg *msg, int pid)
@@ -142,7 +148,7 @@ int YFSMkDir(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, MKDIR);
+    int inum = process_path(pathname, msg->inum, MKDIR, -1);
     if (inum == ERROR) return ERROR;
     msg->inum = inum;
 
@@ -157,7 +163,7 @@ int YFSRmDir(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, RMDIR);
+    int inum = process_path(pathname, msg->inum, RMDIR, -1);
     if (inum == ERROR) return ERROR;
     msg->inum = inum;
 
@@ -172,7 +178,7 @@ int YFSChDir(struct msg *msg, int pid)
         return ERROR;
     }
 
-    int inum = process_path(pathname, msg->inum, CHDIR);
+    int inum = process_path(pathname, msg->inum, CHDIR, -1);
     if (inum == ERROR) return ERROR;
     msg->inum = inum;
 
@@ -190,7 +196,7 @@ int YFSStat(struct msg *msg, int pid)
     printf("YFSStat pathname is %s\n", pathname);
     printf("YFSStat msg->inum is %d\n", msg->inum);
 
-    int inum = process_path(pathname, msg->inum, STAT);
+    int inum = process_path(pathname, msg->inum, STAT, -1);
     printf( "YFSStat inum is %d\n", inum);
     if (inum == ERROR) return ERROR;
     msg->inum = inum; // store inum into message

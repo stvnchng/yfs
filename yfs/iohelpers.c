@@ -123,7 +123,7 @@ int write_inode(short inum, struct inode *inode)
 	return 0;
 }	
 
-int process_path(char *path, int curr_inum, int call_type) 
+int process_path(char *path, int curr_inum, int call_type, int link_type) 
 {
 	char component[DIRNAMELEN + 1];
 	int comp_ptr = 0;
@@ -184,7 +184,7 @@ int process_path(char *path, int curr_inum, int call_type)
 						return ERROR;
 					int j;
 					for (j = 0; j < num_dir_in_block; j++) {
-						TracePrintf(1, "the compared component is %s\n", dir_ptr[j].name); // remove this later
+						TracePrintf(1, "the compared component is %s at inode %d\n", dir_ptr[j].name, dir_ptr[j].inum); // remove this later
 						if (compare_filenames(dir_ptr[j].name, component) == 1) {
 							// if we found the right file/dir, move on/open file
 							parent_inum = return_inum;
@@ -276,6 +276,7 @@ int process_path(char *path, int curr_inum, int call_type)
 					case OPEN:
 					case CHDIR:
 					case RMDIR:
+					case UNLINK:
 						TracePrintf(0, "The component %s does not exist\n", component);
 						return ERROR;
 					case CREATE:
@@ -291,6 +292,13 @@ int process_path(char *path, int curr_inum, int call_type)
 						} else {
 							TracePrintf(0, "Cannot find the right file to open\n");
 							return ERROR;
+						}
+					case LINK:
+						if (link_type == LINK_OLD) {
+							TracePrintf(0, "there must exist a file/directory for the old name.\n");
+							return ERROR;
+						} else {
+							return link_helper(link_type, component, return_inum, start_inode);
 						}
 				}
 			} 
@@ -310,7 +318,18 @@ int process_path(char *path, int curr_inum, int call_type)
 			TracePrintf(0, "MKDIR fail. The directory already exists.\n");
 			return ERROR;
 		case RMDIR:
-			return remove_dir_entry(start_inode, parent_inode, return_inum, parent_inum);		
+			return remove_dir_entry(component, start_inode, parent_inode, return_inum, parent_inum);	
+		case LINK:
+			if (link_type != LINK_OLD) {
+				TracePrintf(0, "A dir_entry for new name must not exist.\n");
+				return ERROR;
+			} else if (start_inode->type == INODE_DIRECTORY) {
+				TracePrintf(0, "%s cannot be a directory", component);
+				return ERROR;
+			}
+			break;
+		case UNLINK:
+			return unlink_helper(component, start_inode, return_inum, parent_inode, parent_inum);
 		default:
 			break;
 	}
@@ -526,6 +545,7 @@ int create_stuff(char *name, int parent_inum, short type)
 	// Set up the new inode
 	struct inode *new_inode = malloc(sizeof(struct inode));
 	new_inode->type = type;
+	new_inode->nlink = 1;
 	// if the newly created inode is a directory, we need to put special dir_entry . and ..
 	if (type == INODE_DIRECTORY) {
 		new_inode->size = 2 * sizeof(struct dir_entry);
@@ -557,7 +577,7 @@ int create_stuff(char *name, int parent_inum, short type)
 	return return_inum;
 }
 
-int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int child_inum,  int parent_inum) 
+int remove_dir_entry(char *name, struct inode *child_inode, struct inode *parent_inode, int child_inum,  int parent_inum) 
 {
 	TracePrintf(1, "the parent's inum is %d\n", parent_inum);
 	// both inodes needs to be directories
@@ -619,7 +639,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 		TracePrintf(1, "The last dir_entry is inode %d, with name %s\n", last_dir_inum, last_dir_name);
 		
 		// Now find the child inode
-		int child_block = find_dir_entry_block(child_inum, parent_inode, parent_num_blocks, parent_num_dir);
+		int child_block = find_dir_entry_block(name, child_inum, parent_inode, parent_num_blocks, parent_num_dir);
 		if (child_block == ERROR) {
 			free(last_dir_name);
 			return ERROR;
@@ -631,7 +651,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 		 	return ERROR;
 		}
 		for (i = 0; i < BLOCKSIZE/sizeof(struct dir_entry); i++) {
-			if (entries[i].inum == child_inum) {
+			if (entries[i].inum == child_inum && compare_filenames(entries[i].name, name) == 1) {
 				TracePrintf(1, "Found the to-be-removed inode\n");
 				entries[i].inum = last_dir_inum;
 				memcpy(entries[i].name, last_dir_name, DIRNAMELEN);
@@ -645,28 +665,31 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 	write_inode(parent_inum, parent_inode);
 
 	// free the inode and the block it is allocated
-	int child_num_blocks = get_num_blocks(child_inode);
-	if (child_num_blocks <= NUM_DIRECT) {
-		for (i = 0; i < (unsigned int) child_num_blocks; i++) {
-			add_free_block(child_inode->direct[i]);
+	child_inode->nlink--;
+	if (child_inode->nlink == 0) {
+		int child_num_blocks = get_num_blocks(child_inode);
+		if (child_num_blocks <= NUM_DIRECT) {
+			for (i = 0; i < (unsigned int) child_num_blocks; i++) {
+				add_free_block(child_inode->direct[i]);
+			}
+		} else {
+			for (i = 0; i < NUM_DIRECT; i++) {
+				add_free_block(child_inode->direct[i]);
+			}
+			int num_indirect = child_num_blocks - NUM_DIRECT;
+			int *indirect_blocks = malloc(SECTORSIZE);
+			status = ReadSectorWrapper(child_inode->indirect, indirect_blocks);
+			if (status == ERROR) {
+				free(indirect_blocks);
+				return ERROR;		
+			}
+			for (i = 0; i < (unsigned int) num_indirect; i++) {
+				add_free_block(indirect_blocks[i]);
+			}
+			add_free_block(child_inode->indirect);
 		}
-	} else {
-		for (i = 0; i < NUM_DIRECT; i++) {
-			add_free_block(child_inode->direct[i]);
-		}
-		int num_indirect = child_num_blocks - NUM_DIRECT;
-		int *indirect_blocks = malloc(SECTORSIZE);
-		status = ReadSectorWrapper(child_inode->indirect, indirect_blocks);
-		if (status == ERROR) {
-			free(indirect_blocks);
-			return ERROR;		
-		}
-		for (i = 0; i < (unsigned int) num_indirect; i++) {
-			add_free_block(indirect_blocks[i]);
-		}
-		add_free_block(child_inode->indirect);
+		add_free_inode(child_inum);
 	}
-	add_free_inode(child_inum);
 	// add_free_block(free_block);
 
 	return ERROR;
@@ -675,7 +698,7 @@ int remove_dir_entry(struct inode *child_inode, struct inode *parent_inode, int 
 /**
  * Find a block that contains the dir_entry with inum
  */
-int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_blocks, int parent_num_dir)
+int find_dir_entry_block(char *name, int inum, struct inode *parent_inode, int parent_num_blocks, int parent_num_dir)
 {
 	unsigned int i, j;
 	int status;
@@ -688,7 +711,7 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 				return ERROR;
 			}
 			for (j = 0; j < SECTORSIZE/sizeof(struct dir_entry); j++) {
-				if (return_block[j].inum == inum) {
+				if (return_block[j].inum == inum && compare_filenames(return_block[j].name, name) == 1) {
 					TracePrintf(0, "Block %d contains inode %d\n", parent_inode->direct[i], inum);
 					return parent_inode->direct[i];
 				}
@@ -706,7 +729,7 @@ int find_dir_entry_block(int inum, struct inode *parent_inode, int parent_num_bl
 				return ERROR;
 			}
 			for (j = 0; j < SECTORSIZE/sizeof(struct dir_entry); j++) {
-				if (return_block[j].inum == inum) {
+				if (return_block[j].inum == inum && compare_filenames(return_block[j].name, name) == 1) {
 					TracePrintf(0, "Block %d contains inode %d", parent_inode->direct[i], inum);
 					return parent_inode->direct[i];
 				}
@@ -932,63 +955,92 @@ int write_helper(int inum, int pos, int size, void *buf)
 }
 
 
-int link_helper(int inum, int curr_inum, char *new_name)
-{
-	// Get the current inode
-	struct inode *curr_inode = get_inode(curr_inum);
 
-	int num_blocks = get_num_blocks(curr_inode);
+/**
+ * This helper is used when we already get the old name inode and the new name path
+ */
+int link_helper(int old_inum, char *new_name, int parent_inum, struct inode *parent_inode)
+{
+	TracePrintf(0, "Enter link_helper with old inum %d, new name %s, parent_inum %d\n", old_inum, new_name, parent_inum);
+	// Get the directory with the name oldname
+	struct inode * old_inode = get_inode(old_inum);
+
+	int num_blocks = get_num_blocks(parent_inode);
 
 	// Get the index of the to-be-created dir entry
 	int create_new_block = 0;
-	int last_dir_index = get_num_dir(curr_inode) % num_dir_in_block;
+	int last_dir_index = get_num_dir(parent_inode) % num_dir_in_block;
 	if (last_dir_index == 0) {
 		create_new_block = 1;
 		if (num_blocks++ == NUM_DIRECT) {
-			curr_inode->indirect = remove_free_block();
+			parent_inode->indirect = remove_free_block();
 		}
 	}
 
 	// Get the last block in the inode
-	struct dir_entry last_entries[BLOCKSIZE/sizeof(struct dir_entry)];
+	struct dir_entry *last_entries;
 	int last_block_num, last_block_index;
 	if (num_blocks <= NUM_DIRECT) {
 		last_block_index = num_blocks - 1;
 		if (create_new_block == 1) {
-			curr_inode->direct[last_block_index] = remove_free_block();
+			parent_inode->direct[last_block_index] = remove_free_block();
 		}
-		last_block_num = curr_inode->direct[last_block_index];
+		last_block_num = parent_inode->direct[last_block_index];
 	} else {
 		last_block_index = num_blocks - NUM_DIRECT - 1;
-		int indirect_blocks[BLOCKSIZE/4];
-		if (ReadSectorWrapper(curr_inode->indirect, indirect_blocks) == ERROR) {
+		int *indirect_blocks;
+		if ((indirect_blocks = get_block(parent_inode->indirect)) == NULL) {
 			return ERROR;
 		}
 		if (create_new_block == 1) {
 			indirect_blocks[last_block_index] = remove_free_block();
-			if (WriteSectorWrapper(curr_inode->indirect, indirect_blocks) == ERROR) {
+			if (WriteSectorWrapper(parent_inode->indirect, indirect_blocks) == ERROR) {
 				return ERROR;
 			}
 		}
 		last_block_num = indirect_blocks[last_block_index];
+		free(indirect_blocks);
 	}
 	// If we created a new block (create_new_block == 1) ReadSector will not be necessary
 	// since there are nothing in the block
-	if (create_new_block == 0 && ReadSectorWrapper(last_block_num, last_entries) == ERROR) {
+	if (create_new_block == 0 && (last_entries = get_block(last_block_num)) == NULL) {
 		return ERROR;
 	}
 
 	// Create a new dir entry
-	last_entries[last_dir_index].inum = inum;
+	last_entries[last_dir_index].inum = old_inum;
 	memcpy(last_entries[last_dir_index].name, new_name, DIRNAMELEN);
 	if (WriteSectorWrapper(last_block_num, last_entries) == ERROR) {
 		return ERROR;
 	}
+
+	free(last_entries);
 	
+	// Add a link to oldname
+	old_inode->nlink++;
+	write_inode(old_inum, old_inode);
+	free(old_inode);
 	// Increase the size of the current inode
-	curr_inode->size += sizeof(struct dir_entry);
+	parent_inode->size += sizeof(struct dir_entry);
 	// Write the updated current inode to the disk and cache
-	write_inode(curr_inum, curr_inode);
+	write_inode(parent_inum, parent_inode);
+	TracePrintf(0, "Finish linking inode %d to %s\n", old_inum, new_name);
+	return 0;
+}
+
+
+int unlink_helper(char *name, struct inode *inode, int inum, struct inode *parent_inode, int parent_inum) 
+{
+	TracePrintf(0, "Enter unlink_helper with inum %d\n", inum);
+	// Check if inode is a directory
+	if (inode->type == INODE_DIRECTORY) {
+		TracePrintf(0, "Inode %d must not be a directory.\n", inum);
+		return ERROR;
+	}
+
+	inode->nlink--;
+	remove_dir_entry(name, inode, parent_inode, inum, parent_inum);
+
 	return 0;
 }
 

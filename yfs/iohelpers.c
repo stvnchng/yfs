@@ -538,7 +538,6 @@ int create_stuff(char *name, int parent_inum, short type)
 		if (status == ERROR) {
 			free(new_entry);
 			free(indirect_blocks);
-			TracePrintf(0, "Failed to read from sector %d\n", parent_inode->indirect);
 			return ERROR;
 		}
 		// allocate the new inode in a direct block
@@ -560,7 +559,7 @@ int create_stuff(char *name, int parent_inum, short type)
 				return ERROR;
 			}
 			// Add a new block to the end of the indirect block. 
-			indirect_blocks[num_blocks - NUM_DIRECT] = free_block;
+			indirect_blocks[num_blocks - NUM_DIRECT - 1] = free_block;
 			status = WriteSectorWrapper(parent_inode->indirect, indirect_blocks);
 			if (status == ERROR) {
 				add_free_block(free_block);
@@ -1111,12 +1110,16 @@ int link_helper(int old_inum, char *new_name, int parent_inum, struct inode *par
 	
 	// Add a link to oldname
 	old_inode->nlink++;
-	write_inode(old_inum, old_inode);
+	if (write_inode(old_inum, old_inode) == ERROR) {
+		return ERROR;
+	}
 	free(old_inode);
 	// Increase the size of the current inode
 	parent_inode->size += sizeof(struct dir_entry);
 	// Write the updated current inode to the disk and cache
-	write_inode(parent_inum, parent_inode);
+	if (write_inode(parent_inum, parent_inode) == ERROR) {
+		return ERROR;
+	}
 	TracePrintf(0, "Finish linking inode %d to %s\n", old_inum, new_name);
 	return 0;
 }

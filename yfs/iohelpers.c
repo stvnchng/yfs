@@ -417,7 +417,7 @@ int remove_free_block()
  */
 int check_block(int blocknum) 
 {
-	return free_block_list[blocknum];
+	return free_block_list[blocknum - 1];
 }
 
 
@@ -892,20 +892,41 @@ int write_helper(int inum, int pos, int size, void *buf)
 	}
 
 	// Get the block where the position is at
-	int block_num = pos / BLOCKSIZE;	
-	if (block_num < NUM_DIRECT) {
-		block_num = inode->direct[block_num];
+	int block_index = pos / BLOCKSIZE;
+	int block_num;
+	// we need a new block is pos % BLOCKSIZE == 0
+	if (pos % BLOCKSIZE == 0) {
+		if (block_index < NUM_DIRECT) {
+			inode->direct[block_index] = remove_free_block();	
+		} else {
+			if (block_index == NUM_DIRECT) {
+				inode->indirect = remove_free_block();
+			}
+			int *indirect = (int *)get_block(inode->indirect);
+			indirect[block_index - NUM_DIRECT] = remove_free_block();
+			free(indirect);
+		}	
+	}
+
+	if (block_index < NUM_DIRECT) {
+		block_num = inode->direct[block_index];
 	} else {
 		int *indirect = (int *)get_block(inode->indirect);
-		block_num = indirect[block_num - NUM_DIRECT];
+		block_num = indirect[block_index - NUM_DIRECT];
+		if (WriteSectorWrapper(inode->indirect, indirect) == ERROR) {
+			return ERROR;
+		}
 		free(indirect);
 	}
 	TracePrintf(1, "The first block is at %d with %d space left.\n", block_num, BLOCKSIZE - (pos % BLOCKSIZE));
 
 	// malloc a buffer that is of size SECTORSIZE
  	void *temp_buf = malloc(SECTORSIZE);
+	if (ReadSectorWrapper(block_num, temp_buf) == ERROR) {
+		return ERROR;
+	}
 	// if size is less than SECTORSIZE, we have to put the buffer into the temp_buf
-	if (size < BLOCKSIZE - (pos % BLOCKSIZE)) {
+	if (size <= BLOCKSIZE - (pos % BLOCKSIZE)) {
 		memcpy(temp_buf + (pos % BLOCKSIZE), buf, size);
 		if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
 			return ERROR;
@@ -927,13 +948,12 @@ int write_helper(int inum, int pos, int size, void *buf)
 
 	// Write to blocks that are after the first block
 	while (size_left > 0) {
-		++block_num;
-		if (block_num >= num_blocks) {   // We need a new block
-			if (block_num < NUM_DIRECT) { // We need a new direct block 
-				inode->direct[block_num] = remove_free_block();
-				block_num = inode->direct[block_num];
+		if (++block_index >= num_blocks) {   // We need a new block
+			if (block_index < NUM_DIRECT) { // We need a new direct block 
+				inode->direct[block_index] = remove_free_block();
+				block_num = inode->direct[block_index];
 			} else { // We need a new indirect block
-				if (block_num == NUM_DIRECT) {
+				if (block_index == NUM_DIRECT) {
 					if((inode->indirect = remove_free_block()) == ERROR) {
 						return ERROR;
 					}
@@ -942,22 +962,26 @@ int write_helper(int inum, int pos, int size, void *buf)
 				if ((block_num = remove_free_block()) == ERROR) {
 					return ERROR;
 				}
-				indirects[block_num - NUM_DIRECT] = block_num;
+				indirects[block_index - NUM_DIRECT] = block_num;
+				if (WriteSectorWrapper(inode->indirect, indirects) == ERROR) {
+					return ERROR;
+				}
+				free(indirects);
 			}	
 		} else {
-			if (block_num < NUM_DIRECT) {
-				block_num = inode->direct[block_num];
+			if (block_index < NUM_DIRECT) {
+				block_num = inode->direct[block_index];
 			} else {
 				int *indirect = (int *)get_block(inode->indirect);
-				block_num = indirect[block_num - NUM_DIRECT];
+				block_num = indirect[block_index - NUM_DIRECT];
 				free(indirect);
 			}
 		}
 		
 		// Write to the last block needed
-		if (size_left < BLOCKSIZE) {
+		if (size_left <= BLOCKSIZE) {
 			memcpy(temp_buf, buf, size_left);
-			if (WriteSectorWrapper(block_num, buf) == ERROR) {
+			if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
 				return ERROR;
 			}
 			size_left = 0;
@@ -965,7 +989,7 @@ int write_helper(int inum, int pos, int size, void *buf)
 		}
 
 		memcpy(temp_buf, buf, BLOCKSIZE);
-		if (WriteSectorWrapper(block_num, buf) == ERROR) {
+		if (WriteSectorWrapper(block_num, temp_buf) == ERROR) {
 			return ERROR;
 		}
 		size_left -= BLOCKSIZE;

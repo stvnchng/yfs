@@ -4,14 +4,16 @@
 int
 main()
 {
-	int fd;
+	int fd, i;
 
 	fd = Create("a");
 	Write(fd, "aaaaaaaaaaaaaaaa", 16);
 	Close(fd);
 
 	fd = Create("b");
-	Write(fd, "bbbbbbbbbbbbbbbb", 16);
+	for (i = 0; i < 340; i++) {
+	Write(fd, "bbbbbbbbbbbbbbbb", 19);
+	}
 	Close(fd);
 
 	fd = Create("c");

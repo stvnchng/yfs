@@ -9,6 +9,9 @@
 int num_dir_in_block = BLOCKSIZE / sizeof(struct dir_entry);
 int inode_per_block = BLOCKSIZE / INODESIZE;
 
+/**
+ * This method checks whether two filenames are identical.
+ */
 int compare_filenames(char *f1, char *f2) 
 {
 	int i;
@@ -38,6 +41,10 @@ int get_num_dir(struct inode *inode)
     return inode->size / sizeof(struct dir_entry);
 }
 
+/**
+ * This method retrieves a cache_item from the hash table, and if the item
+ * exists, marks it as dirty.
+ */
 int mark_dirty(struct cache *cache, int key)
 {
 	struct cache_item *item = (struct cache_item *) hash_table_lookup(cache->ht, key);
@@ -49,6 +56,11 @@ int mark_dirty(struct cache *cache, int key)
 	return 0;
 }
 
+/**
+ * This method returns a pointer to an inode associated with the given inum.
+ * It first checks the cache, and if it isn't in it, it will allocate space for one,
+ * read it into the block, and place it in the cache. 
+ */
 struct inode *get_inode(short inum) 
 {
 	// Check the inode_cache first
@@ -82,7 +94,11 @@ struct inode *get_inode(short inum)
 	return res;
 }
 
-/* return address of block given its blocknum */
+/**
+ * This method returns a void pointer to block associated with the blocknum.
+ * It first checks the cache, and if it isn't in it, it will allocate space for one,
+ * read it into the block, and place it in the cache. 
+ */
 void *get_block(int blocknum)
 {
 	// check if block is in cache first
@@ -99,6 +115,9 @@ void *get_block(int blocknum)
 	return addr;
 }
 
+/**
+ * This method writes the inode to the block and caches it.
+ */
 int write_inode(short inum, struct inode *inode) 
 {
 	TracePrintf(0, "Starts writing to inode %d\n", inum);
@@ -137,6 +156,14 @@ int write_inode(short inum, struct inode *inode)
 	return 0;
 }	
 
+/**
+ * This method parses the hierarchy tree and finds the inum associated with
+ * the calling process. Depending on the call type, the return inode will be passed
+ * onto other helper functions.
+ * 
+ * On success, this returns the inum associated with the calling process.
+ * On failure, this returns ERROR.
+ */
 int process_path(char *path, int curr_inum, int call_type, int link_type) 
 {
 	char component[DIRNAMELEN + 1];
@@ -420,7 +447,14 @@ int check_block(int blocknum)
 	return free_block_list[blocknum - 1];
 }
 
-
+/**
+ * A helper function that creates a directory entry and allocates a block
+ * if needed. The inode is set up and if it is a directory, the special entries
+ * "." and ".." are created for it. 
+ * 
+ * On success, the inum of the created inode is returned. On failure, ERROR
+ * is returned.
+ */
 int create_stuff(char *name, int parent_inum, short type) 
 {
 	if (type == INODE_REGULAR) {
@@ -491,6 +525,7 @@ int create_stuff(char *name, int parent_inum, short type)
 			last_block[new_dir_index] = *new_entry;
 			// Write back the block
 			status = WriteSectorWrapper(parent_inode->direct[num_blocks - 1], last_block);
+			mark_dirty(block_cache, parent_inode->direct[num_blocks - 1]);
 			if (status == ERROR) {
 				free(new_entry);
 				return ERROR;
@@ -548,6 +583,7 @@ int create_stuff(char *name, int parent_inum, short type)
 			last_block[num_dir % num_dir_in_block] = *new_entry;
 			// Write back the block
 			status = WriteSectorWrapper(indirect_blocks[num_blocks - 1 - NUM_DIRECT], last_block);
+			mark_dirty(block_cache, indirect_blocks[num_blocks - 1 - NUM_DIRECT]);
 			if (status == ERROR) {
 				free(new_entry);
 				free(indirect_blocks);
@@ -658,7 +694,7 @@ int remove_dir_entry(char *name, struct inode *child_inode, struct inode *parent
 		} else {
 			last_dir_index = parent_num_dir % num_dir_in_block - 1;	
 		}
-		// Get teh last dir_entry's inum and name
+		// Get the last dir_entry's inum and name
 		int last_dir_inum = entries[last_dir_index].inum;
 		char *last_dir_name = malloc(DIRNAMELEN);
 		memcpy(last_dir_name, entries[last_dir_index].name, DIRNAMELEN);
@@ -793,7 +829,10 @@ int find_dir_entry_block(char *name, int inum, struct inode *parent_inode, int p
 	return ERROR;
 }
 
-
+/**
+ * A helper function for YFSRead. This method returns the number of bytes written
+ * or ERROR in case of any error.
+ */
 int read_helper(int inum, int pos, int size, void *buf)
 {
 	struct inode *inode = get_inode(inum);
@@ -869,7 +908,10 @@ int read_helper(int inum, int pos, int size, void *buf)
 	return res;
 }
 
-
+/**
+ * A helper function for YFSWrite. This method returns the number of bytes written
+ * or ERROR in case of any error.
+ */
 int write_helper(int inum, int pos, int size, void *buf)
 {
 	if (size == 0) {
@@ -885,7 +927,6 @@ int write_helper(int inum, int pos, int size, void *buf)
 	int size_left = size;
 
 	int num_blocks = get_num_blocks(inode);  // number of data blocks the file has
-											 //
 	// if the file is empty, give it a new block
 	if (inode->size == 0) {
 		inode->direct[0] = remove_free_block();
@@ -1080,7 +1121,10 @@ int link_helper(int old_inum, char *new_name, int parent_inum, struct inode *par
 	return 0;
 }
 
-
+/**
+ * A helper function for YFSUnlink. This method decrements the nlink count on the
+ * inode and removes the dir_entry associated with the parent inode. 
+ */
 int unlink_helper(char *name, struct inode *inode, int inum, struct inode *parent_inode, int parent_inum) 
 {
 	TracePrintf(0, "Enter unlink_helper with inum %d\n", inum);

@@ -47,6 +47,7 @@ int YFSRead(struct msg *msg, int pid)
 {
     void *readbuf = malloc(msg->data2);
 	if (readbuf == NULL) {
+        printf("Malloc failed for readbuf in YFSRead\n");
 		return ERROR;
 	}
     int bytes_written = read_helper(msg->inum, msg->data1, msg->data2, readbuf);
@@ -391,9 +392,3 @@ int SendBuf(int destpid, void *dest, void *src, int buflen)
 	}
 	return 0;
 }
-
-// int ReplyWithError(struct msg *msg, int pid)
-// {
-//     msg->type = ERROR;
-//     return Reply((void *) msg, pid);
-// }

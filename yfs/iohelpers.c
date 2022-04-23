@@ -38,6 +38,17 @@ int get_num_dir(struct inode *inode)
     return inode->size / sizeof(struct dir_entry);
 }
 
+int mark_dirty(struct cache *cache, int key)
+{
+	struct cache_item *item = (struct cache_item *) hash_table_lookup(cache->ht, key);
+	if (item == NULL) {
+		printf("Null cache item in mark_dirty!\n");
+		return ERROR;
+	}
+	item->dirty = true;
+	return 0;
+}
+
 struct inode *get_inode(short inum) 
 {
 	// Check the inode_cache first
@@ -84,6 +95,7 @@ void *get_block(int blocknum)
 		free(addr);
 		return NULL;
 	}
+	PutIntoCache(block_cache, blocknum, addr);
 	return addr;
 }
 
@@ -344,6 +356,7 @@ void add_free_inode(int inum)
 	free_inode.type = INODE_FREE;
 	free_inode.size = 0;
 	write_inode(inum, &free_inode);
+	mark_dirty(inode_cache, inum);
 }
 
 int remove_free_inode(short type) 
@@ -451,6 +464,7 @@ int create_stuff(char *name, int parent_inum, short type)
 				return ERROR;
 			}
 			parent_inode->direct[num_blocks] = free_block;
+			mark_dirty(block_cache, free_block);
 		} else {
 			struct dir_entry last_block[SECTORSIZE/sizeof(struct dir_entry)];
 			// read the last block
@@ -1043,7 +1057,4 @@ int unlink_helper(char *name, struct inode *inode, int inum, struct inode *paren
 
 	return 0;
 }
-
-
-
 

@@ -42,15 +42,16 @@ main(int argc, char **argv)
     }
 
     while (1) {
+	printf("Inside while loop\n");
 	nch = Read(fd, (char *)&entry, sizeof(entry));
 	if (nch == 0)
 	    break;
 	else if (nch < 0) {
-	    fprintf(stderr, "ERROR Reading from directory\n");
+	    printf("ERROR Reading from directory\n");
 	    Shutdown();
 	    Exit(1);
 	} else if (nch != sizeof(entry)) {
-	    fprintf(stderr, "Read wrong byte count %d\n", nch);
+	    printf("Read wrong byte count %d\n", nch);
 	    Shutdown();
 	    Exit(1);
 	}
@@ -91,4 +92,5 @@ main(int argc, char **argv)
     }
 
     Shutdown();
+	Exit(0);
 }

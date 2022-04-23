@@ -45,7 +45,7 @@ int YFSCreate(struct msg *msg, int pid)
 
 int YFSRead(struct msg *msg, int pid)
 {
-    void *readbuf = malloc(msg->data2); 
+    void *readbuf = malloc(msg->data2);
 	if (readbuf == NULL) {
 		return ERROR;
 	}
@@ -193,11 +193,7 @@ int YFSStat(struct msg *msg, int pid)
         return ERROR;
     }
 
-    printf("YFSStat pathname is %s\n", pathname);
-    printf("YFSStat msg->inum is %d\n", msg->inum);
-
     int inum = process_path(pathname, msg->inum, STAT, -1);
-    printf( "YFSStat inum is %d\n", inum);
     if (inum == ERROR) return ERROR;
     msg->inum = inum; // store inum into message
 
@@ -211,11 +207,9 @@ int YFSStat(struct msg *msg, int pid)
     struct Stat *statbuf = malloc(sizeof(struct Stat)); 
     statbuf->inum = inum;
     statbuf->type = inode->type;
-    printf("inode size is %d\n", inode->size);
     statbuf->size = inode->size;
     statbuf->nlink = inode->nlink;
 
-    // TODO: need to check over this still
     // copy statbuf info from server back to client 
     if (CopyTo(pid, msg->ptr2, statbuf, pathlen) == ERROR) {
         printf("Error in CopyTo for YFSStat\n");
@@ -223,10 +217,10 @@ int YFSStat(struct msg *msg, int pid)
     }
 
     msg->type = inode->type; // overwrite message type with inode type
-    msg->data1 = inode->size;
-    // memcpy(statbuf, (struct Stat *) msg->ptr2, sizeof(struct Stat));
-    printf("YFSStat return message contents: inum %d, nlnk %d, size %d, type %d\n",
-           statbuf->inum, statbuf->nlink, statbuf->size, statbuf->type);
+    msg->data1 = inode->size; // overwrite pathlen with size
+    msg->data2 = inode->nlink; //store nlink into data2
+    // printf("YFSStat return message contents: inum %d, nlnk %d, size %d, type %d\n",
+        //    statbuf->inum, statbuf->nlink, statbuf->size, statbuf->type);
     return 0;
 }
 
@@ -245,6 +239,8 @@ int YFSSync(void)
             // Section 4.1 - write back to block cache for the block holding inode 
             memcpy(block_addr, inode_head->value, sizeof(struct inode));
             TracePrintf(0, "Wrote back inum %d\n", inum);
+            // TODO: do we need to WriteSector to the block here?
+            inode_head->dirty = false;
         }   
         inode_head = inode_head->next;
     }
@@ -257,6 +253,7 @@ int YFSSync(void)
                 printf("WriteSector error in Sync, block %d\n", block_head->num);
                 return ERROR;
             }
+            block_head->dirty = false;
         }
         block_head = block_head->next;
     }

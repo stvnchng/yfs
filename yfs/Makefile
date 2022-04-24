@@ -24,7 +24,7 @@
 #	For example, the Makefile will make test1 out of test1.c,
 #	if you have a file named test1.c in this directory.
 #
-TEST = mkyfs tests/sample1 tests/sample2 tests/topen2 tests/tcreate2 tests/writeread tests/tstat tests/tlink tests/tls
+TEST = #../tests/tcreate#../mkyfs tests/sample1 tests/sample2 tests/topen2 tests/tcreate2 tests/writeread tests/tstat tests/tlink tests/tls tests/tunlink2
 
 #
 #	Define the list of everything to be made by this Makefile.
@@ -41,7 +41,7 @@ ALL = yfs iolib.a $(TEST)
 #	YFS server, and YFS_SRCS should  be a list of the corresponding
 #	source files that make up your serever.
 #
-YFS_OBJS = yfs.o yfs_calls.o hash_table.o  iohelpers.o
+YFS_OBJS = yfs.o yfs_calls.o hash_table.o iohelpers.o
 YFS_SRCS = yfs.c yfs_calls.c hash_table.c iohelpers.c
 
 #

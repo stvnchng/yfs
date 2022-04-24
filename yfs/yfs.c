@@ -32,6 +32,7 @@ main(int argc, char **argv)
                 struct msg *msg = malloc(sizeof(struct msg));
 
                 if (HandleRequest(msg) == ERROR) {
+					printf("Fatal error occurred in HandleRequest, YFS shuts down\n.");
 					return ERROR;
 				}
                 free(msg);

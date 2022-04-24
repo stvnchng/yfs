@@ -90,20 +90,28 @@ int YFSSeek(struct msg_seek *msg, int pid)
     int offset = msg->offset;
     switch (msg->whence)
     {
+    // file position cannot go before start of file or further than inode
     case SEEK_SET: // from beginning
+        if (offset < 0 || offset > inode->size) {
+            printf("Invalid seek position for SEEK_SET\n");
+            return ERROR;
+        }
         msg->position = offset;
         break;
     case SEEK_CUR: // from current
+        if (msg->position + offset < 0 || msg->position + offset > inode->size) {
+            printf("Invalid seek position for SEEK_CUR\n");
+            return ERROR;
+        }
         msg->position = msg->position + offset;
         break;
     case SEEK_END: // from end
+        if (inode->size + offset < 0) {
+            printf("Invalid seek position for SEEK_END\n");
+            return ERROR;
+        }
         msg->position = inode->size + offset;
         break;
-    }
-     // file position cannot go before start of file or further than inode
-    if (msg->position < 0 || msg->position > inode->size) {
-        printf("Invalid position set in YFSSeek\n");
-        return ERROR;
     }
     return msg->position;
 }
@@ -240,7 +248,8 @@ int YFSSync(void)
             // Section 4.1 - write back to block cache for the block holding inode 
             memcpy(block_addr, inode_head->value, sizeof(struct inode));
             TracePrintf(0, "Wrote back inum %d\n", inum);
-            // TODO: do we need to WriteSector to the block here?
+            // TODO: do we need to WriteSector to the blocknum here?
+            WriteSector(((inum / (BLOCKSIZE / INODESIZE)) + 1), block_addr);
             inode_head->dirty = false;
         }   
         inode_head = inode_head->next;

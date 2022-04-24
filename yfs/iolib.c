@@ -59,6 +59,10 @@ int Close(int fd)
         printf("Invalid fd %d provided for Close.\n", fd);
         return ERROR;
     }
+    if (opened_files[fd].occupied == 0) {
+        printf("Error: Attempted to close a non-open file in this process\n");
+        return ERROR;
+    }
 
     opened_files[fd].occupied = 0; // fd is not occupied anymore
 
@@ -67,8 +71,8 @@ int Close(int fd)
 
 int Create(char *pathname)
 {
-	int file_inum;
-    if ((file_inum = SendMessageWithPath(CREATE, pathname)) == ERROR) {
+	int file_inum = SendMessageWithPath(CREATE, pathname);
+    if (file_inum == ERROR) {
         printf("Error in send message for Create\n");
         return ERROR;
     }
@@ -102,13 +106,13 @@ int Read(int fd, void *buf, int size) // TODO might need to read over
 
     struct opened_file curr_file = opened_files[fd];
     if (curr_file.occupied == 0) {
-        printf("Error: Write to a nonexistent file\n");
+        printf("Error: Read to a nonexistent file\n");
         return ERROR;
     }
 
     int bytes_read = SendMessageRW(READ, curr_file, buf, size);
     if (bytes_read == ERROR) {
-        printf("Error in SendRWMessage for Write\n");
+        printf("Error in SendRWMessage for Read\n");
         return ERROR;
     }
 
@@ -164,8 +168,9 @@ int Seek(int fd, int offset, int whence)
         printf("Error during Send for SEEK\n");
         return ERROR;
     }
+    int new_pos = msg->position; //return new offset from msg
     free(msg);
-    return opened_files[fd].position; //return new offset 
+    return new_pos; 
 }
 
 int Link(char *oldname, char *newname)
@@ -251,7 +256,6 @@ int Stat(char *pathname, struct Stat *statbuf)
         printf("Error during Send for STAT\n");
         return ERROR;
     }
-    // statbuf = (struct Stat *) msg->ptr2;
     // update statbuf with contents of reply message
     statbuf->inum = msg->inum; // should be the same
     statbuf->type = msg->type; // need to overwrite message type with inode type

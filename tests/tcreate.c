@@ -17,7 +17,7 @@ main()
     Delay(3);
     fprintf(stderr, "Done with Sync\n");
 
-/*	Shutdown(); */
+    Shutdown(); 
 
-    exit(0);
+    Exit(0);
 }
